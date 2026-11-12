@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% from '_parts/ui.html' import badge, empty, pager, icon, tag %}
+
+{% set ACTIVE_KIND = {'活跃': 'ok', '放缓': 'warn', '停滞': 'warn', '可能废弃': 'err', '未知': 'mut'} %}
+
+{% block content %}
+<div class="wb-ph">
+  <div class="wb-ph-line">
+    <h1>自动分类与判断引擎</h1>
+    <div class="wb-eyebrow">ENGINE / 005</div>
+    <div class="wb-ph-meta">看过 {{ counts.all }} · 收编 {{ counts.auto }} · 待定 {{ counts.candidate }} · 规则 {{ rule_total }} 条</div>
+  </div>
+  <div class="sub">
+    判据不是拍脑袋：按 <strong>GitHub 上真实仓库根的特征打分</strong> ——
+    <span class="wb-mono">.git</span>、依赖清单、README、LICENSE、.gitignore、CI、Docker、构建入口。
+    攒够 {{ score_auto }} 分才算项目；{{ score_cand }}–{{ score_auto - 1 }} 分进候选等你定。所有减法都能在这儿看回来、改回来。
+  </div>
+</div>
+
+<div class="wb-funnel wb-funnel-flow">
+  {% for key, label, num in stages %}
+  {% set pct = ((num / counts.all * 100) | round | int) if counts.all else 0 %}
+  <a class="wb-stage {{ 'on' if stage == key }} {{ 'need' if key == 'candidate' and num else '' }}"
+     href="{{ url_for('engine.index', stage=key) }}">
+    <div class="n"><span class="idx">0{{ loop.index }}</span><span class="lb">{{ label }}</span></div>
+    <div class="v">{{ num }}</div>
+    <div class="d">{{ states[key][1] if key in states else '库里有记录的全部目录' }}</div>
+    <div class="bar"><i style="width:{{ pct }}%"></i></div>
+  </a>
+  {% endfor %}
+</div>
+
+<div class="wb-dgrid wb-dgrid-wide wb-dgrid-fill">
+  <div class="wb-stack">
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('folder', 15) }}自动导入</h2><span class="hint">根目录里的东西，全进这套判定</span></div>
+      <div class="wb-cb">
+        {% if roots %}
+        <table class="wb-tbl">
+          <thead>
+            <tr><th>扫描根目录</th><th style="width:104px">加入时间</th></tr>
+          </thead>
+          <tbody>
+            {% for r in roots %}
+            <tr>
+              <td class="wb-mono wb-fs1 wb-break">{{ r.path }}</td>
+              <td class="wb-mut2 wb-fs1 wb-nowrap">{{ (r.added_at or '')[:10] }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          {{ empty('还没加扫描根目录', '去新手向导勾几个文件夹，或者到设置里加一条路径。') }}
+        {% endif %}
+      </div>
+      <div class="wb-row" style="gap:6px;margin-top:10px">
+        <form method="post" action="{{ url_for('projects.scan_now') }}">
+          <button class="wb-btn pri sm" type="submit">重新扫描</button>
+        </form>
+        <a class="wb-btn ghost sm" href="{{ url_for('settings.index') }}">管理根目录</a>
+      </div>
+      <div class="wb-foot">
+        {% if last_scan %}上次扫描 {{ last_scan[:16] }}，{% endif %}深度 3 层，命中项目就停止下探。
+        <br>判据是特征打分，规则就在右边那张表里。想调分值改
+        <span class="wb-mono">wb/scan.py</span> 的 <span class="wb-mono">ROOT_SIGNALS</span>。
+      </div>
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('shield', 15) }}扫描摘要</h2><span class="hint">这一轮引擎干了什么</span></div>
+      <div class="wb-cb">
+        <div class="wb-scanmeta">
+          <div>
+            <div class="k">扫描根目录</div>
+            <div class="v">{{ roots|length }}</div>
+          </div>
+          <div>
+            <div class="k">上次扫描</div>
+            <div class="v">{{ last_scan[5:16] if last_scan else '—' }}</div>
+          </div>
+          <div>
+            <div class="k">收编率</div>
+            <div class="v">{{ ((counts.auto / counts.all * 100) | round | int) if counts.all else 0 }}<span class="u">%</span></div>
+          </div>
+          <div>
+            <div class="k">下探深度</div>
+            <div class="v">3<span class="u">层</span></div>
+          </div>
+        </div>
+
+        {% if counts.all %}
+        {% set pa = (counts.auto / counts.all * 100) | round(1) %}
+        {% set pc = (counts.candidate / counts.all * 100) | round(1) %}
+        {% set pd = 100 - pa - pc %}
+        <div class="wb-mk">本轮判定构成</div>
+        <div class="wb-dist-bar">
+          <i style="width:{{ pa }}%;background:var(--ok)"></i>
+          <i style="width:{{ pc }}%;background:var(--info)"></i>
+          <i style="width:{{ pd }}%;background:#C3C9D2"></i>
+        </div>
+        <div class="wb-dist-leg">
+          <span><em style="background:var(--ok)"></em>收编 <b>{{ counts.auto }}</b></span>
+          <span><em style="background:var(--info)"></em>待定 <b>{{ counts.candidate }}</b></span>
+          <span><em style="background:#C3C9D2"></em>剔除 <b>{{ counts.dropped }}</b></span>
+        </div>
+        {% endif %}
+
+        <div class="wb-foot" style="margin-top:10px">
+          收编率 = 已收编 ÷ 看过的目录。低于一半说明根目录里塞了太多非项目的东西，
+          值得去设置里收窄一下扫描范围。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wb-card">
+    <div class="wb-ch"><h2>{{ icon('shield', 15) }}判断引擎 · 可解释</h2><span class="hint">按顺序匹配，命中即停</span></div>
+    <table class="wb-tbl wb-rule-tbl">
+      <thead>
+        <tr><th style="width:52%">特征</th><th style="width:96px">分值</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        {% for gname, gdesc, rows in rule_groups %}
+        <tr class="wb-grp">
+          <td colspan="3"><b>{{ gname }}</b><span>{{ gdesc }}</span></td>
+        </tr>
+        {% for ev, pts, note in rows %}
+        <tr>
+          <td class="wb-fs1 wb-break">{{ ev }}</td>
+          <td class="wb-nowrap">
+            <span class="wb-pts" title="{{ pts }} 分">
+              {% for i in range(5) %}<i class="{{ 'on' if i < pts }}"></i>{% endfor %}
+            </span>
+            <b class="wb-pts-n">+{{ pts }}</b>
+          </td>
+          <td class="wb-fs1 wb-mut2">{{ note }}</td>
+        </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="3" class="wb-fs1 wb-mut2" style="padding-top:10px">
+            攒够 <b>{{ score_auto }} 分</b> → 自动收编；<b>{{ score_cand }}–{{ score_auto - 1 }} 分</b> → 进候选等你定；
+            <b>不到 {{ score_cand }} 分</b> → 引擎直接减掉。
+            分项在下面每一行的「为什么这么判」里列出来，可以自己复核。
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<div class="wb-card wb-mt3">
+  <div class="wb-ch">
+    <h2>{{ icon('list', 15) }}分类结果与手动操作</h2>
+    <span class="hint">{{ total_all }} 条 · {{ states[stage][0] if stage in states else '全部' }}</span>
+    {% if stage != 'candidate' %}
+    <a class="btn-reset wb-fs1 wb-right" href="{{ url_for('engine.index', stage='candidate') }}">回到待定 →</a>
+    {% endif %}
+  </div>
+
+  {% if items %}
+  <table class="wb-tbl">
+    <thead>
+      <tr>
+        <th style="width:34%">目录</th>
+        <th>为什么这么判</th>
+        <th style="width:104px">命名来源</th>
+        <th style="width:120px">手动操作</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in items %}
+      <tr>
+        <td>
+          <div class="wb-pnm">{{ i.name if i.state != 'dropped' else i.dirname }}</div>
+          <div class="wb-sub">
+            <span class="wb-path">{{ i.path }}</span>
+            {% if i.manual %}<span class="wb-need">手工命名</span>{% endif %}
+          </div>
+        </td>
+        <td class="wb-fs1 wb-mut">
+          {{ why.get(i.path, '') }}
+          <div class="wb-sub"><span>{{ i.stack }}</span>{{ badge(i.active, ACTIVE_KIND.get(i.active, 'mut')) }}</div>
+        </td>
+        <td class="wb-fs1 wb-nowrap">
+          {{ src_label.get(i.name_src, '目录名') }}
+          <div class="wb-sub wb-mono">{{ (i.name_conf * 100)|round|int ~ '%' if i.name_conf is not none else '—' }}</div>
+        </td>
+        <td class="wb-nowrap">
+          {% if i.state == 'auto' %}
+            <button class="wb-btn sm ghost" type="button" data-eng-set="{{ i.path }}" data-to="dropped">剔掉</button>
+          {% elif i.state == 'candidate' %}
+            <button class="wb-btn sm pri" type="button" data-eng-set="{{ i.path }}" data-to="auto">收编</button>
+            <button class="wb-btn sm ghost" type="button" data-eng-set="{{ i.path }}" data-to="dropped">不要</button>
+          {% else %}
+            <button class="wb-btn sm ghost" type="button" data-eng-set="{{ i.path }}" data-to="auto">恢复</button>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ pager(page.page, page.pages, page.total, mk_url) }}
+  {% else %}
+    {% if stage == 'candidate' %}
+      {{ empty('没有待你定的候选', '引擎认得所有目录 —— 有 README 的都收编了，没 README 的都剔掉了。') }}
+    {% elif stage == 'dropped' %}
+      {{ empty('还没有被剔除的目录', '重新扫描一次，容器名和临时目录就会出现在这里。') }}
+    {% else %}
+      {{ empty('这一档是空的', '换个漏斗格子看看。') }}
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='engine.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,270 @@
+{% extends 'base.html' %}
+{% from '_parts/ui.html' import badge, empty, pager, icon %}
+
+{% set ACTIVE_KIND = {'活跃': 'ok', '放缓': 'warn', '停滞': 'warn', '可能废弃': 'err', '未知': 'mut',
+                      '进行中': 'brand', '已完成': 'ok', '归档': 'mut', '忽略': 'mut'} %}
+{% set SRC_LABEL = {'readme_h1': 'README 标题', 'manifest': '清单文件', 'dirname': '目录名'} %}
+{# 技术栈 → 图标 key。detect_stack 可能返回「Python（散装）」，
+   Jinja 里没法调 Python 函数，所以用 startswith 前缀匹配兜住。 #}
+{% macro stack_kw(stack) -%}
+  {%- set base = stack.split('（')[0].split('(')[0].strip() -%}
+  {%- set m = {'Python': 'py', 'Node': 'node', 'Go': 'go', 'Java': 'java',
+               'Rust': 'none', 'PHP': 'none', 'Ruby': 'none', '.NET': 'none',
+               '静态页': 'static', '未识别': 'none'} -%}
+  {{- m.get(base, 'none') -}}
+{%- endmacro %}
+
+{% block content %}
+<div class="wb-ph">
+  <div class="wb-ph-line">
+    <h1>项目档案</h1>
+    <div class="wb-eyebrow">PROJECTS / 002</div>
+  </div>
+  <div class="sub">
+    共 {{ total_all }} 个。「这是什么」取项目 README 的首段；同步状态由本地 git 直接读，不调 API。
+  </div>
+
+  {% if total_all %}
+  {# 四个大数：先看整体状况，再看表格。比逐行读 30 条快得多。 #}
+  <div class="wb-stat-strip">
+    {% for s in stats %}
+    <div class="wb-stat" style="--sc:{{ s.color }}">
+      <div class="lab">{{ icon(s.icon, 13) }}{{ s.k }}</div>
+      <div class="num">{{ s.v }}</div>
+      <div class="desc">{{ s.s }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="wb-phviz">
+    <div class="wb-distcard">
+    <div class="wb-dist">
+      <div class="wb-dist-bar">
+        {% for label, num, color in dist %}{% if num %}<i style="background:{{ color }};flex:{{ num }}"></i>{% endif %}{% endfor %}
+      </div>
+      <div class="wb-dist-leg">
+        {% for label, num, color in dist %}
+          <span><em style="background:{{ color }}"></em>{{ label }} <b>{{ num }}</b></span>
+        {% endfor %}
+        <span class="wb-right wb-mut2">按最后提交时间推断，不是项目状态</span>
+      </div>
+    </div>
+    </div>
+
+    {% if stack_rows %}
+    <div class="wb-stackviz">
+      <div class="wb-dk">技术栈分布</div>
+      {% for r in stack_rows %}
+      <div class="wb-srow">
+        <span class="kw-{{ r.key }}">{{ icon(r.key, 11) }}{{ r.label }}</span>
+        <span class="bar"><i style="width:{{ r.pct }}%"></i></span>
+        <b>{{ r.n }}</b>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+{% if not roots and not total_all %}
+<div class="wb-card">
+  <div class="wb-ch"><h2>先把项目文件夹加进来</h2><span class="hint">只读扫描，不改你磁盘上的任何文件</span></div>
+  <div class="wb-cb">
+    <form method="post" action="{{ url_for('projects.add_root') }}" class="wb-row" style="gap:10px">
+      <input class="wb-f" name="path" placeholder="例如 D:\test 或 D:\personal" autocomplete="off" required>
+      <button class="wb-btn pri" type="submit">添加并扫描</button>
+    </form>
+    <div class="wb-foot">
+      路径要填本地磁盘上的文件夹。扫描深度最多 3 层，命中项目后不再往里钻，node_modules / .venv 这类目录会跳过。
+    </div>
+  </div>
+</div>
+{% else %}
+
+{# 重复目录提醒：同一个项目被扫成两条时，用户根本分不清谁是正版。
+   系统不该让人猜 —— 直接说「这俩是同一份东西，建议留哪个、为什么」。 #}
+{% if duplicates %}
+<div class="wb-dups">
+  <div class="wb-dups-hd">
+    {{ icon('alert', 15) }}
+    <b>{{ duplicates|length }} 组重复目录</b>
+    <span class="wb-mut2">多半是导出/备份留下的副本。系统按「有 git ＞ 更新更近 ＞ 文件更全」判断该留谁。</span>
+  </div>
+  {% for d in duplicates %}
+  <div class="wb-dup">
+    <div class="wb-dup-name">{{ d.name }} <span class="wb-bdg b-mut">文件重合 {{ d.overlap }}%</span></div>
+    <div class="wb-dup-body">
+      <div class="wb-dup-side keep">
+        <span class="tag">{{ icon('check', 11) }} 建议保留</span>
+        <span class="wb-mono wb-break">{{ d.keep.path }}</span>
+      </div>
+      <div class="wb-dup-side drop">
+        <span class="tag">{{ icon('trash', 11) }} 可删</span>
+        <span class="wb-mono wb-break">{{ d.drop.path }}</span>
+      </div>
+      <div class="wb-dup-why">{{ d.reason }}</div>
+    </div>
+    <div class="wb-dup-acts">
+      {# 只做「从清单里移除」，绝不替用户删磁盘文件 —— 删目录是不可逆的 #}
+      <button class="wb-btn sm ghost" type="button" data-ignore-path="{{ d.drop.path }}"
+              title="只是不再显示它，磁盘上的文件不动">从清单移除这条</button>
+      <a class="wb-btn sm ghost" href="{{ url_for('projects.detail', rel=d.drop.rel) }}">看它一眼</a>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="wb-tools">
+  <form method="get" action="{{ url_for('projects.index') }}" class="wb-row" style="gap:6px">
+    <input type="hidden" name="flt" value="{{ flt }}">
+    <input type="hidden" name="sort" value="{{ sort }}">
+    <input class="wb-f" name="q" value="{{ q }}" placeholder="搜名称 / 目录 / 路径" style="width:200px" autocomplete="off">
+    <button class="wb-btn" type="submit">搜索</button>
+    {% if q %}<a class="wb-btn ghost" href="{{ url_for('projects.index', flt=flt, sort=sort) }}">清空</a>{% endif %}
+  </form>
+
+  <div class="wb-chips" role="tablist">
+    {% for key, label in flts.items() %}
+      <a class="wb-chip {{ 'on' if flt == key }}" role="tab" aria-selected="{{ 'true' if flt == key else 'false' }}"
+         href="{{ url_for('projects.index', q=q or None, flt=key, sort=sort) }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+
+  <form method="get" action="{{ url_for('projects.index') }}" class="wb-right">
+    <input type="hidden" name="q" value="{{ q }}">
+    <input type="hidden" name="flt" value="{{ flt }}">
+    <select class="wb-f" name="sort" onchange="this.form.submit()" style="width:auto" aria-label="排序">
+      {% for key, label in sorts.items() %}
+        <option value="{{ key }}" {{ 'selected' if sort == key }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <form method="post" action="{{ url_for('projects.scan_now') }}">
+    <button class="wb-btn" type="submit">重新扫描</button>
+  </form>
+  <a class="wb-btn ghost" href="{{ url_for('projects.export_csv') }}">导出 CSV</a>
+</div>
+
+<div class="wb-bulkbar" id="wb-bulk" hidden>
+  <span class="wb-bulk-n">已选 <b>0</b> 项</span>
+  <button class="wb-btn sm" type="button" data-bulk="pin">置顶</button>
+  <button class="wb-btn sm" type="button" data-bulk="unpin">取消置顶</button>
+  <button class="wb-btn sm" type="button" data-bulk="done">标记完成</button>
+  <button class="wb-btn sm" type="button" data-bulk="archive">归档</button>
+  <button class="wb-btn sm ghost" type="button" data-bulk="unarchive">取消归档</button>
+  <button class="wb-btn sm ghost" type="button" data-bulk="ignore">从清单移除</button>
+  <button class="wb-btn sm ghost wb-right" type="button" id="wb-bulk-clear">取消选择</button>
+</div>
+
+<div class="wb-card">
+  {% if items %}
+  <table class="wb-tbl wb-tbl-projects">
+    <thead>
+      <tr>
+        <th style="width:34px"><input type="checkbox" id="wb-check-all" aria-label="全选本页"></th>
+        <th style="width:21%">名称 / 路径</th>
+        <th>这是什么</th>
+        <th style="width:84px">状态</th>
+        <th style="width:150px">同步</th>
+        <th style="width:106px">最近动过</th>
+        <th style="width:98px">部署到哪台</th>
+        <th style="width:38px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for i in items %}
+      <tr>
+        <td><input type="checkbox" class="wb-check" value="{{ i.path }}" aria-label="选中 {{ i.name }}"></td>
+
+        <td>
+          <div class="wb-pname">
+            <span class="wb-pav" style="background:{{ i.color }}">{{ i.avatar }}</span>
+            <div class="wb-grow">
+              <a class="wb-pnm" href="{{ url_for('projects.detail', rel=i.rel) }}">{{ i.name }}</a>
+              {% if i.pinned %}<span class="wb-bdg b-brand">置顶</span>{% endif %}
+              <div class="wb-ppath" title="{{ i.path }}">{{ i.dirname }}</div>
+              {# 原来这里每行都印「README 标题 · 0.90」。那是给开发看的口径说明，
+                 对用户零价值，还把列表搅乱。只在两处真正需要时提示：
+                 ① 名字是手工改的 ② 自动识别置信度低、建议人工确认 #}
+              {% if i.name_overridden %}
+                <div class="wb-nsrc">手工命名</div>
+              {% elif (i.name_conf or 0) < 0.5 %}
+                <div class="wb-nsrc is-warn" title="自动识别没把握，建议点开确认或改名">名字待确认</div>
+              {% endif %}
+            </div>
+          </div>
+        </td>
+
+        <td>
+          {% if i.summary %}
+            <div class="wb-what" title="{{ i.summary }}">{{ i.summary }}</div>
+          {% else %}
+            <div class="wb-what wb-what-empty">README 还没写开头，点进去补一句。</div>
+          {% endif %}
+          {% set sk = stack_kw(i.stack) %}
+          <div class="wb-kw">
+            <span class="kw-{{ sk }}">{{ icon(sk, 11) }}{{ i.stack }}</span>
+            {% if i.is_git %}<span class="kw-git">{{ icon('branch', 11) }}Git</span>{% endif %}
+            {% if i.run_local %}<span class="kw-local">{{ icon('laptop', 11) }}本机</span>{% endif %}
+            {% if i.note %}<span class="kw-note" title="{{ i.note }}">{{ icon('info', 11) }}{{ i.note[:14] }}</span>{% endif %}
+          </div>
+        </td>
+
+        <td class="wb-nowrap">{{ badge(i.status, ACTIVE_KIND.get(i.status, 'mut')) }}</td>
+
+        <td>
+          <div class="wb-sync">
+            {% if i.dirty_n %}<span class="wb-minib m-dirty">{{ icon('alert', 11) }} {{ i.dirty_n }} 未提交</span>{% endif %}
+            {% if i.unpushed_n %}<span class="wb-minib m-push">{{ icon('arrow', 11) }} {{ i.unpushed_n }} 未推送</span>{% endif %}
+            {% if i.gh_url %}<a class="wb-minib m-gh" href="{{ i.gh_url }}" target="_blank" rel="noopener noreferrer">{{ icon('ext', 11) }} {{ i.gh_site or '仓库' }}</a>{% endif %}
+            {% if not i.is_git %}<span class="wb-mut2 wb-fs1">{{ icon('info', 11) }} 非 git</span>
+            {% elif not i.dirty_n and not i.unpushed_n %}<span class="wb-minib m-sync">{{ icon('check', 11) }} 已同步</span>{% endif %}
+          </div>
+        </td>
+
+        <td class="wb-nowrap">
+          <div class="wb-rel" style="color:{{ i.rel_color }}">{{ i.rel_time_text }}</div>
+          <div class="wb-rdate">{{ i.last_commit[:10] if i.last_commit else '—' }}</div>
+        </td>
+
+        <td class="wb-nowrap">
+          {% if i.servers %}
+            <span class="wb-srvtag" title="{{ i.servers|join(' · ') }}">{{ icon('server', 11) }} {{ i.servers[0] }}{% if i.servers|length > 1 %} +{{ i.servers|length - 1 }}{% endif %}</span>
+          {% elif i.run_local %}
+            <span class="wb-srvtag local">{{ icon('laptop', 11) }} 本机</span>
+          {% else %}
+            <span class="wb-mut2">—</span>
+          {% endif %}
+        </td>
+
+        <td>
+          <div class="wb-rowacts">
+            {# 单项目重扫：改完 README 或刚提交完，只想刷这一个 #}
+            <button class="wb-iconbtn" type="button" data-rescan="{{ i.rel }}"
+                    title="重扫这个项目（只扫它，秒出结果）">{{ icon('refresh', 15) }}</button>
+            <button class="wb-iconbtn" type="button" data-open="{{ i.rel }}" title="在资源管理器里打开">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 3h7v7M10 14L21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>
+              </svg>
+            </button>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ pager(page.page, page.pages, page.total, mk_url) }}
+  {% else %}
+    {{ empty('没有符合条件的项目', '换个筛选条件，或者清空搜索词试试。') }}
+  {% endif %}
+</div>
+
+{% if total_all and not items %}
+<div class="wb-foot">当前筛到 0 条，总数 {{ total_all }}。可能是筛选条件太窄了。</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

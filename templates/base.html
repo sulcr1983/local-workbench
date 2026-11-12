@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}{{ page_title|default('工作台') }} · Supersu 工作台{% endblock %}</title>
+<link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+<link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+{# 只引自有 CSS：全部组件都是 wb- 前缀自造，引 Tabler 只会带来 .modal/.card 类名冲突（见 TECH_SPEC §7.6） #}
+</head>
+<body>
+<div class="wb-app">
+  {% include '_parts/sidebar.html' %}
+  <main class="wb-main">
+    {% include '_parts/topbar.html' %}
+    <div class="wb-wrap">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+
+<div class="wb-toast" id="wb-toast" role="status" aria-live="polite"></div>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
