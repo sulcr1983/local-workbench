@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% from '_parts/ui.html' import empty, icon, tag %}
+
+{% block content %}
+<div class="wb-ph">
+  <div class="wb-ph-line">
+    <h1>设置</h1>
+    <div class="wb-eyebrow">SETTINGS / 007</div>
+  </div>
+  <div class="sub">界面开关、扫描范围、活跃度口径、配置搬家，都在这。改完立刻生效，不用重启。</div>
+</div>
+
+<div class="wb-two">
+  <div class="wb-stack">
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('gear', 15) }}界面</h2><span class="hint">关掉的项不会出现在侧栏</span></div>
+      <div class="wb-cb">
+        {% set SW_IC = {'show_overview': 'list', 'show_expiries': 'clock', 'browser_alive': 'activity'} %}
+        {% set SW_DESC = {'show_overview': '首页的库存总览', 'show_expiries': '域名与证书到期清单', 'browser_alive': '保持一个浏览器进程常驻'} %}
+        {% for key, label in ui_labels.items() %}
+        <label class="wb-switchrow {{ 'is-on' if ui.get(key) }}">
+          <span class="wb-switchrow-i">{{ icon(SW_IC.get(key, 'info'), 16) }}</span>
+          <span class="wb-switchrow-t">{{ label }}
+            <em class="wb-mut2">{{ SW_DESC.get(key, '') }}</em>
+          </span>
+          {% if ui.get(key) %}{{ tag('已开启', 'ok') }}{% else %}{{ tag('已关闭', 'mut') }}{% endif %}
+          <span class="wb-sw">
+            <input type="checkbox" data-ui-toggle="{{ key }}" {{ 'checked' if ui.get(key) }}>
+            <i></i>
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('activity', 15) }}活跃度规则</h2><span class="hint">改完下次扫描生效</span></div>
+      <div class="wb-cb">
+        <div class="wb-form3">
+          <div><label class="wb-lab" for="rl-active">活跃 ≤ 天</label><input class="wb-f" id="rl-active" value="{{ rules.active }}" inputmode="numeric"></div>
+          <div><label class="wb-lab" for="rl-slow">放缓 ≤ 天</label><input class="wb-f" id="rl-slow" value="{{ rules.slow }}" inputmode="numeric"></div>
+          <div><label class="wb-lab" for="rl-stale">停滞 ≤ 天</label><input class="wb-f" id="rl-stale" value="{{ rules.stale }}" inputmode="numeric"></div>
+        </div>
+        <div class="wb-row wb-mt3">
+          <button class="wb-btn pri" type="button" id="rl-save">保存口径</button>
+          <span class="wb-fs1 wb-mut2">超过停滞天数就算「可能废弃」</span>
+        </div>
+        <div class="wb-test-result" id="rl-result" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wb-stack">
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('folder', 15) }}扫描根目录</h2><span class="hint">{{ roots|length }} 个</span></div>
+      <div class="wb-cb">
+        <form class="wb-row" id="root-form" style="gap:8px">
+          <input class="wb-f" id="root-path" placeholder="D:\test" autocomplete="off">
+          <button class="wb-btn" type="submit">添加</button>
+        </form>
+        <div class="wb-foot">只读扫描，不会改你磁盘上的任何文件。删掉根目录只删配置。</div>
+      </div>
+      {% if roots %}
+      <table class="wb-tbl">
+        <tbody>
+          {% for r in roots %}
+          <tr>
+            <td class="wb-mono wb-fs1">{{ r.path }}</td>
+            <td class="wb-mut2 wb-fs1 wb-nowrap">{{ r.added_at[:10] }}</td>
+            <td class="right"><button class="wb-iconbtn" type="button" data-root-del="{{ r.path }}" title="移除">✕</button></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('clock', 15) }}定时任务</h2>
+        {% if sched_on %}{{ tag('运行中', 'ok', 'check') }}{% else %}{{ tag('未启动', 'mut') }}{% endif %}
+      </div>
+      <div class="wb-cb">
+        {% if jobs %}
+        <table class="wb-tbl" style="margin:-6px 0">
+          <tbody>
+            {% for j in jobs %}
+            <tr>
+              <td class="wb-fs1">{{ '巡检采集' if j.id == 'wb-monitor' else '到期检查' }}</td>
+              <td class="wb-mono wb-fs1 wb-nowrap wb-mut2">下次 {{ j.next }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="wb-note">
+          {{ icon('info', 14) }}
+          <span><b>当前不自动跑。</b>启动时带了 <span class="wb-mono">WB_NO_SCHED=1</span>，
+          或者调度没起来。重启工作台就会自动巡检 —— 不用你手动点。</span>
+        </div>
+        {% endif %}
+        <div class="wb-specs">
+          <div><span>巡检采集</span><b>每 10 分钟</b></div>
+          <div><span>到期检查</span><b>每 6 小时</b></div>
+          <div><span>告警去重</span><b>24 小时</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('list', 15) }}工具与记录</h2><span class="hint">平时不用管，出问题来这查</span></div>
+      <div class="wb-cb">
+        <div class="wb-row" style="gap:8px;flex-wrap:wrap">
+          <a class="wb-btn" href="{{ url_for('engine.index') }}">分类引擎</a>
+          <a class="wb-btn" href="{{ url_for('audit.index') }}">操作记录</a>
+          <a class="wb-btn ghost" href="{{ url_for('welcome.index') }}">重看新手向导</a>
+        </div>
+        <div class="wb-foot">分类引擎看「每个项目名是怎么来的」；操作记录是本机写操作的流水。</div>
+      </div>
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('key', 15) }}配置导出 / 导入</h2><span class="hint">导出后凭据是空的</span></div>
+      <div class="wb-cb">
+        <div class="wb-row" style="gap:8px;flex-wrap:wrap">
+          <a class="wb-btn" href="{{ url_for('settings.export_config') }}">导出配置 JSON</a>
+          <button class="wb-btn" type="button" id="cfg-pick">导入配置</button>
+          <input type="file" id="cfg-file" accept="application/json,.json" hidden>
+        </div>
+        <div class="wb-foot">
+          导出不含密码/私钥/授权码（这是故意的，防止配置文件外泄）。导入按名称合并，已存的口令不会被空值覆盖。
+        </div>
+        <div class="wb-test-result" id="cfg-result" hidden></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='settings.js') }}"></script>
+{% endblock %}

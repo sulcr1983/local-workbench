@@ -1,0 +1,250 @@
+{% extends 'base.html' %}
+{% from '_parts/ui.html' import badge, empty, pager, icon, tag, guide %}
+
+{% block content %}
+<div class="wb-ph">
+  <div class="wb-ph-line">
+    <h1>到期提醒</h1>
+    <div class="wb-eyebrow">EXPIRIES / 004</div>
+    <div class="wb-ph-meta">在册 {{ stats.total }}</div>
+  </div>
+  <div class="sub">
+    域名、证书、云服务器到期日都在这。30 天内的会先亮起来 —— 提前续，别等挂。
+  </div>
+</div>
+
+<div class="wb-stat-strip">
+  <div class="wb-stat" style="--c:#A32D2D">
+    <div class="lab">{{ icon('alert', 13) }} 已过期</div>
+    <div class="num">{{ stats.expired }}</div>
+    <div class="desc">得马上处理</div>
+  </div>
+  <div class="wb-stat" style="--c:#B26A00">
+    <div class="lab">{{ icon('clock', 13) }} 7 天内</div>
+    <div class="num">{{ stats.d7 }}</div>
+    <div class="desc">这周到期</div>
+  </div>
+  <div class="wb-stat" style="--c:#8A6D00">
+    <div class="lab">{{ icon('clock', 13) }} 30 天内</div>
+    <div class="num">{{ stats.d30 }}</div>
+    <div class="desc">排进计划</div>
+  </div>
+  <div class="wb-stat" style="--c:#2F6FED">
+    <div class="lab">{{ icon('list', 13) }} 在册总数</div>
+    <div class="num">{{ stats.total }}</div>
+    <div class="desc">含手动项</div>
+  </div>
+</div>
+
+<div class="wb-tools">
+  <div class="wb-chips">
+    {% for key, label in flts.items() %}
+      <a class="wb-chip {{ 'on' if flt == key }}" href="{{ url_for('expiries.index', flt=key) }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <div class="wb-right wb-row" style="gap:6px">
+    {# 刷新入口只留顶栏那颗「刷新到期」，这里不再重复一颗。 #}
+    <button class="wb-btn" type="button" data-mbx-open="mbx-provider">云厂商</button>
+    <button class="wb-btn" type="button" data-mbx-open="mbx-notify">通知</button>
+    {# 空态里已经有「记一条」的引导按钮了，工具条再放一个就是同页两个入口干一件事 #}
+    {% if items %}
+    <button class="wb-btn pri" type="button" data-mbx-open="mbx-expiry">添加</button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="wb-card">
+  {% if rows %}
+  <table class="wb-tbl">
+    <thead>
+      <tr>
+        <th style="width:38%">名称</th>
+        <th style="width:84px">类型</th>
+        <th style="width:112px">到期日</th>
+        <th style="width:132px">剩余</th>
+        <th style="width:64px">续费</th>
+        <th>备注</th>
+        <th style="width:56px"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>
+          <div class="wb-pnm">{{ r.name }}</div>
+          {% if r.last_err %}<div class="wb-sub"><span class="wb-need" title="{{ r.last_err }}">{{ r.last_err[:36] }}</span></div>{% endif %}
+        </td>
+        <td class="wb-nowrap">{{ badge(r.kind_label, 'info' if r.kind in ('domain','ssl') else 'mut') }}</td>
+        <td class="wb-mono wb-fs1 wb-nowrap">{{ r.expire or '—' }}</td>
+        <td class="wb-nowrap">{{ badge(r.level_label, r.level_cls) }}</td>
+        <td class="wb-nowrap">{{ '自动' if r.renew else '手动' }}</td>
+        <td class="wb-mut2 wb-fs1">{{ r.note or '—' }}</td>
+        <td class="right">
+          <button class="wb-iconbtn" type="button" data-exp-del="{{ r.id }}" title="删除">✕</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ pager(page.page, page.pages, page.total, mk_url) }}
+  {% else %}
+    {% set cta %}
+      <button class="wb-btn pri" type="button" data-mbx-open="mbx-expiry">{{ icon('plus', 15) }} 记一条</button>
+      <button class="wb-btn ghost" type="button" data-mbx-open="mbx-provider">{{ icon('cloud', 15) }} 接云账号</button>
+    {% endset %}
+    {% set foot %}
+      域名和证书填进去之后，工作台会自己去 RDAP / WHOIS 查到期日，到期前自动提醒 —— 不用你记。
+    {% endset %}
+    {{ guide('clock',
+         '还没有到期项',
+         '域名、证书、云服务器什么时候到期，都汇总在这一页。',
+         steps=[
+           ('plus',   '手动记一条', '域名、证书、或者任何会过期的东西'),
+           ('cloud',  '接云账号',   '填一次 AK/SK，云上资源的到期日自动拉'),
+           ('bell',   '让它提醒',   '接一个钉钉 / 企微 / 邮件，到期前自动推')
+         ],
+         cta=cta, act=foot) }}
+  {% endif %}
+</div>
+
+{% if providers %}
+<div class="wb-card">
+  <div class="wb-ch"><h2>已接入的云厂商</h2><span class="hint">{{ providers|length }} 组</span></div>
+  <table class="wb-tbl">
+    <tbody>
+      {% for p in providers %}
+      <tr>
+        <td style="width:44%">{{ p.name }} <span class="wb-bdg b-mut">{{ provider_kinds.get(p.kind, p.kind) }}</span></td>
+        <td class="wb-mut2 wb-fs1">{{ '启用' if p.enabled else '停用' }}</td>
+        <td class="right wb-nowrap">
+          <button class="wb-btn sm ghost" type="button" data-prov-toggle="{{ p.id }}">{{ '停用' if p.enabled else '启用' }}</button>
+          <button class="wb-btn sm ghost danger" type="button" data-prov-del="{{ p.id }}">删除</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{# ---------------- 添加到期项 ---------------- #}
+<div class="wb-mbx" id="mbx-expiry" hidden>
+  <div class="wb-mbx-card" style="width:min(520px,94vw)">
+    <div class="wb-mbx-hd"><h2>添加到期项</h2><button class="wb-iconbtn x" type="button" data-mbx-close>✕</button></div>
+    <div class="wb-mbx-bd">
+      <div class="wb-form2">
+        <div>
+          <label class="wb-lab" for="ex-kind">类型</label>
+          <select class="wb-f" id="ex-kind">
+            <option value="manual">手动（随便记一条）</option>
+            <option value="domain">域名</option>
+            <option value="ssl">HTTPS 证书</option>
+          </select>
+        </div>
+        <div>
+          <label class="wb-lab" for="ex-name">名称</label>
+          <input class="wb-f" id="ex-name" placeholder="example.com 或 备注名">
+        </div>
+      </div>
+      <div class="wb-form2">
+        <div>
+          <label class="wb-lab" for="ex-expire">到期日</label>
+          <input class="wb-f" id="ex-expire" placeholder="2027-05-05">
+        </div>
+        <div>
+          <label class="wb-lab" for="ex-note">备注</label>
+          <input class="wb-f" id="ex-note" placeholder="在哪买的 / 谁负责">
+        </div>
+      </div>
+      <label class="wb-checkline"><input type="checkbox" id="ex-renew"> <span>自动续费</span></label>
+      <div class="wb-foot">选「域名 / 证书」并填名称后，刷新时工作台会去查真实到期日；手动项只按你填的日期算。</div>
+      <div class="wb-test-result" id="ex-result" hidden></div>
+    </div>
+    <div class="wb-mbx-ft">
+      <button class="wb-btn" type="button" data-mbx-close>取消</button>
+      <button class="wb-btn pri" type="button" id="ex-save">保存</button>
+    </div>
+  </div>
+</div>
+
+{# ---------------- 云厂商 ---------------- #}
+<div class="wb-mbx" id="mbx-provider" hidden>
+  <div class="wb-mbx-card" style="width:min(600px,94vw)">
+    <div class="wb-mbx-hd"><h2>接入云厂商</h2><button class="wb-iconbtn x" type="button" data-mbx-close>✕</button></div>
+    <div class="wb-mbx-bd">
+      <div class="wb-form2">
+        <div>
+          <label class="wb-lab" for="pv-kind">厂商</label>
+          <select class="wb-f" id="pv-kind">
+            {% for k, label in provider_kinds.items() %}<option value="{{ k }}">{{ label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="wb-lab" for="pv-name">这组配置叫什么</label>
+          <input class="wb-f" id="pv-name" placeholder="生产账号">
+        </div>
+      </div>
+      <label class="wb-lab" for="pv-cfg">配置（JSON）</label>
+      <textarea class="wb-f" id="pv-cfg" rows="7" spellcheck="false"></textarea>
+      <div class="wb-foot">
+        腾讯云：<code class="wb-mono">{"secret_id":"…","secret_key":"…","regions":["ap-guangzhou"]}</code><br>
+        阿里云：<code class="wb-mono">{"access_key_id":"…","access_key_secret":"…","regions":["cn-hangzhou"]}</code><br>
+        华为云：<code class="wb-mono">{"ak":"…","sk":"…","project_id":"…","regions":["cn-north-4"]}</code><br>
+        自定义：<code class="wb-mono">{"url":"https://…","items_path":"data.items","name_path":"name","expire_path":"expire_time"}</code>
+      </div>
+      <div class="wb-test-result" id="pv-result" hidden></div>
+    </div>
+    <div class="wb-mbx-ft">
+      <button class="wb-btn" type="button" id="pv-test">测试解析</button>
+      <button class="wb-btn" type="button" data-mbx-close>取消</button>
+      <button class="wb-btn pri" type="button" id="pv-save">保存</button>
+    </div>
+  </div>
+</div>
+
+{# ---------------- 通知 ---------------- #}
+<div class="wb-mbx" id="mbx-notify" hidden>
+  <div class="wb-mbx-card" style="width:min(600px,94vw)">
+    <div class="wb-mbx-hd"><h2>通知渠道</h2><button class="wb-iconbtn x" type="button" data-mbx-close>✕</button></div>
+    <div class="wb-mbx-bd">
+      <div class="wb-form2">
+        <div>
+          <label class="wb-lab" for="nt-type">Webhook 类型</label>
+          <select class="wb-f" id="nt-type">
+            <option value="dingtalk" {{ 'selected' if cfg.webhook_type == 'dingtalk' }}>钉钉</option>
+            <option value="wecom" {{ 'selected' if cfg.webhook_type == 'wecom' }}>企业微信</option>
+            <option value="custom" {{ 'selected' if cfg.webhook_type == 'custom' }}>自定义</option>
+          </select>
+        </div>
+        <div>
+          <label class="wb-lab" for="nt-secret">加签密钥（钉钉才有）</label>
+          <input class="wb-f" id="nt-secret" value="{{ cfg.webhook_secret }}" placeholder="SEC…">
+        </div>
+      </div>
+      <label class="wb-lab" for="nt-url">Webhook 地址</label>
+      <input class="wb-f" id="nt-url" value="{{ cfg.webhook_url }}" placeholder="https://oapi.dingtalk.com/robot/send?access_token=…">
+
+      <div class="wb-form3">
+        <div><label class="wb-lab" for="nt-host">SMTP 服务器</label><input class="wb-f" id="nt-host" value="{{ cfg.smtp_host }}"></div>
+        <div><label class="wb-lab" for="nt-port">端口</label><input class="wb-f" id="nt-port" value="{{ cfg.smtp_port }}"></div>
+        <div><label class="wb-lab" for="nt-user">账号</label><input class="wb-f" id="nt-user" value="{{ cfg.smtp_user }}"></div>
+      </div>
+      <div class="wb-form2">
+        <div><label class="wb-lab" for="nt-pass">授权码</label><input class="wb-f" id="nt-pass" type="password" value="{{ cfg.smtp_pass }}"></div>
+        <div><label class="wb-lab" for="nt-to">收件人</label><input class="wb-f" id="nt-to" value="{{ cfg.mail_to }}" placeholder="a@b.com,c@d.com"></div>
+      </div>
+      <label class="wb-checkline"><input type="checkbox" id="nt-tls" {{ 'checked' if cfg.smtp_tls }}> <span>SMTP 用 TLS</span></label>
+      <div class="wb-test-result" id="nt-result" hidden></div>
+    </div>
+    <div class="wb-mbx-ft">
+      <button class="wb-btn" type="button" id="nt-test">发一条测试</button>
+      <button class="wb-btn" type="button" data-mbx-close>取消</button>
+      <button class="wb-btn pri" type="button" id="nt-save">保存</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='expiries.js') }}"></script>
+{% endblock %}

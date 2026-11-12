@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="wz">
+  <div class="wz-head">
+    <div class="wb-eyebrow">SETUP / 000</div>
+    <h1>先配两件事，就能用了</h1>
+    <div class="sub">
+      这台机器上的项目文件夹、和你要连的服务器。都只在本机读写，不上传任何地方。
+      <b>不想现在配也可以，右下角「跳过」。</b>
+    </div>
+  </div>
+
+  <ol class="wz-steps" id="wz-steps">
+    <li class="on" data-step="1"><b>1</b> 选项目文件夹</li>
+    <li data-step="2"><b>2</b> 认一下服务器</li>
+    <li data-step="3"><b>3</b> 开始用</li>
+  </ol>
+
+  {# ------------------------------------------------ 第一步：选目录 #}
+  <section class="wz-pane on" data-pane="1">
+    <div class="wb-card">
+      <div class="wb-ch">
+        <h2>你的项目放在哪几个文件夹里</h2>
+        <span class="hint">可以选多个，只会读取，不会改动</span>
+      </div>
+      <div class="wb-cb">
+        <div class="wz-browse">
+          <div class="wz-browse-main">
+            <div class="wz-bc">
+              <button class="wb-btn sm ghost" type="button" id="wz-up" title="上一级">↑ 上一级</button>
+              <span class="wz-bc-path wb-mono" id="wz-path">…</span>
+              <span class="wb-right wb-fs1 wb-mut2">点目录进去，勾选要加进来的</span>
+            </div>
+            <div class="wz-drives" id="wz-drives"></div>
+            <div class="wz-dirs" id="wz-dirs"><div class="wb-fs1 wb-mut2">正在读取…</div></div>
+          </div>
+
+          <div class="wz-picked">
+            <div class="wz-picked-hd">已选 <b id="wz-count">0</b> 个</div>
+            <ul class="wz-picked-list" id="wz-picked"></ul>
+            <div class="wb-fs1 wb-mut2 wb-mt2">也可以直接粘路径，一行一个：</div>
+            <textarea class="wb-f" id="wz-text" rows="3" placeholder="D:\projects&#10;D:\work\code"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wz-foot">
+      <button class="wb-btn ghost" type="button" data-skip>跳过</button>
+      <button class="wb-btn pri" type="button" id="wz-roots-next">扫描这些文件夹</button>
+    </div>
+    <div class="wb-test-result" id="wz-roots-result" hidden></div>
+  </section>
+
+  {# ------------------------------------------------ 第二步：服务器 #}
+  <section class="wz-pane" data-pane="2">
+    <div class="wb-card">
+      <div class="wb-ch">
+        <h2>要不要把本机的服务器信息带进来</h2>
+        <span class="hint">读本机文件，不联网</span>
+      </div>
+      <div class="wb-cb">
+        <div class="wz-safety">
+          <b>先说清楚：默认不设边界。</b>
+          这是你自己电脑上的工具，为了省事，默认会把项目文件夹里的文件都读一遍来找服务器地址
+          —— 包括 <span class="wb-mono">.env</span>、<span class="wb-mono">config.*</span>、
+          <span class="wb-mono">docker-compose</span> 这些。<br>
+          唯一不读的是私钥文件本身（<span class="wb-mono">id_rsa</span> 之类），只记路径，连的时候才用。<br>
+          <b>介意的话</b>，下面选「保守」：只看 README 和部署脚本，不碰任何配置文件。随时能在「设置」里改。
+        </div>
+
+        <div class="wz-scope">
+          <label class="wz-scope-item">
+            <input type="radio" name="wz-scope" value="full" checked>
+            <span><b>无限制（推荐）</b><em>什么都扫，最容易把服务器找全</em></span>
+          </label>
+          <label class="wz-scope-item">
+            <input type="radio" name="wz-scope" value="safe">
+            <span><b>保守</b><em>只看 README / 部署脚本，不读 .env 和 config</em></span>
+          </label>
+        </div>
+
+        <div class="wb-row wb-mt3">
+          <button class="wb-btn" type="button" id="wz-scan">扫描本机</button>
+          <span class="wb-fs1 wb-mut2">扫出来的都只是候选，不勾选就不会保存</span>
+        </div>
+
+        <div id="wz-found" hidden>
+          <div class="wz-sec" id="wz-sec-ssh" hidden>
+            <div class="wz-sec-hd">SSH 配置里的主机 <span class="wb-mut2" id="wz-n-ssh"></span></div>
+            <table class="wb-tbl"><tbody id="wz-ssh-body"></tbody></table>
+          </div>
+
+          <div class="wz-sec" id="wz-sec-known" hidden>
+            <div class="wz-sec-hd">曾经连过的主机（known_hosts）</div>
+            <div class="wz-chips" id="wz-known-body" style="flex-wrap:wrap"></div>
+          </div>
+
+          <div class="wz-sec" id="wz-sec-proj" hidden>
+            <div class="wz-sec-hd">项目文档里提到的地址 <span class="wb-mut2">（未验证，可能只是示例）</span></div>
+            <div class="wz-chips" id="wz-proj-body" style="flex-wrap:wrap"></div>
+          </div>
+
+          <div class="wz-hint-none" id="wz-none" hidden>没扫到可用的线索 —— 直接下一步，之后在「服务器和云资源」里手动加也行。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wz-foot">
+      <button class="wb-btn ghost" type="button" data-skip>跳过</button>
+      <button class="wb-btn" type="button" data-goto="1">上一步</button>
+      <button class="wb-btn pri" type="button" id="wz-srv-next">导入勾选的</button>
+    </div>
+    <div class="wb-test-result" id="wz-srv-result" hidden></div>
+  </section>
+
+  {# ------------------------------------------------ 第三步：完成 #}
+  <section class="wz-pane" data-pane="3">
+    <div class="wb-card">
+      <div class="wz-done">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.6 2.6L16 9.5"/>
+        </svg>
+        <div class="t">配好了</div>
+        <div class="d" id="wz-summary">项目档案里能看到你的项目了。服务器要连的时候点「刷新全部」。</div>
+        <div class="row">
+          <a class="wb-btn pri" href="{{ url_for('projects.index') }}">去项目档案</a>
+          <a class="wb-btn" href="{{ url_for('servers.index') }}">看服务器</a>
+        </div>
+        <div class="wb-fs1 wb-mut2 wb-mt2">这些设置随时能在「设置」里改。</div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='welcome.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,38 @@
+<div class="wb-mbx" id="mbx-discover" hidden>
+  <div class="wb-mbx-card" style="width:min(880px,94vw)">
+    <div class="wb-mbx-hd">
+      <h2>一键发现</h2>
+      <button class="wb-iconbtn x" type="button" data-mbx-close aria-label="关闭">✕</button>
+    </div>
+
+    <div class="wb-mbx-bd">
+      <div class="dsc-busy" id="dsc-busy">
+        <div class="dsc-spin" aria-hidden="true"></div>
+        <div class="dsc-busy-t">正在扫…</div>
+        <div class="wb-fs1 wb-mut2">
+          翻本机 SSH 配置、连过的机器、项目文档，逐个探 22 端口，能用密钥的顺手试登一次。<br>
+          通常 5–10 秒，网速慢会更久。
+        </div>
+      </div>
+
+      <div id="dsc-body" hidden>
+        <div class="dsc-stat" id="dsc-stat"></div>
+
+        <div class="dsc-hint" id="dsc-hint" hidden></div>
+
+        <div class="dsc-list" id="dsc-list"></div>
+
+        <div class="dsc-warn" id="dsc-warn" hidden></div>
+
+        <div class="dsc-cloud" id="dsc-cloud" hidden></div>
+      </div>
+    </div>
+
+    <div class="wb-mbx-ft">
+      <span class="dsc-sel" id="dsc-sel"></span>
+      <button class="wb-btn" type="button" data-mbx-close>取消</button>
+      <button class="wb-btn ghost" type="button" id="dsc-rescan">重新扫描</button>
+      <button class="wb-btn pri" type="button" id="dsc-import" disabled>导入</button>
+    </div>
+  </div>
+</div>

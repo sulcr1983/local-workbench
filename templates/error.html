@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="wb-ph">
+  <div class="wb-ph-line">
+    <h1>出了点问题</h1>
+    <div class="wb-eyebrow">500 / ERROR</div>
+  </div>
+  <div class="sub">页面没能渲染出来。详细堆栈已经写进本地日志，界面上不显示它——免得把路径和凭据带出来。</div>
+</div>
+
+<div class="wb-card">
+  <div class="wb-ch"><h2>下一步</h2><span class="hint">错误编号 {{ err_id }}</span></div>
+  <div class="wb-cb">
+    <div class="wb-empty" style="justify-content:flex-start;text-align:left">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/><path d="M12 8v4.5"/><path d="M12 16h.01"/>
+      </svg>
+      <div>
+        <b>先刷新一次试试</b>
+        <div>还是不行就去 <span class="wb-mono">data/workbench.log</span> 搜错误编号 <span class="wb-mono">{{ err_id }}</span>，那里有完整原因。</div>
+      </div>
+    </div>
+    <div class="wb-row wb-mt3">
+      <a class="wb-btn pri" href="{{ url_for('projects.index') }}">回到项目档案</a>
+      <a class="wb-btn ghost" href="javascript:location.reload()">刷新页面</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

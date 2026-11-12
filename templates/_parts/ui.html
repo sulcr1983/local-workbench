@@ -1,0 +1,232 @@
+{# =====================================================================
+   通用 UI 宏 —— 卡片 / 徽章 / 空态 / 分页
+   用法：{% from '_parts/ui.html' import badge, empty %}
+   ===================================================================== #}
+
+{% macro badge(text, kind='mut') -%}
+<span class="wb-bdg b-{{ kind }}">{{ text }}</span>
+{%- endmacro %}
+
+
+{# 空态：一行高度，图标 28 + 文案，避免把版面撑出大空洞 #}
+{% macro empty(title, hint='') -%}
+<div class="wb-empty">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 7a2 2 0 0 1 2-2h4l2 2h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/>
+    <path d="M9 13h6"/>
+  </svg>
+  <div>
+    <b>{{ title }}</b>
+    {% if hint %}<div>{{ hint }}</div>{% endif %}
+  </div>
+</div>
+{%- endmacro %}
+
+
+{# 卡片头：图标可选 #}
+{% macro card_head(title, hint='') -%}
+<div class="wb-ch">
+  <h2>{{ title }}</h2>
+  {% if hint %}<span class="hint">{{ hint }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+
+{# 资源条：pct 0-100，档位 ok<60 / warn<85 / err #}
+{% macro bar(pct, cls='') -%}
+{% set level = 'err' if pct >= 85 else ('warn' if pct >= 60 else 'ok') %}
+<div class="wb-bar {{ level }} {{ cls }}"><i style="width:{{ [pct, 100]|min }}%"></i></div>
+{%- endmacro %}
+
+
+{# 分页：info 为左侧说明，page/pages 为当前页与总页数，mk_url(n) 由调用方传入 #}
+{% macro pager(page, pages, total, mk_url) -%}
+{% if pages > 1 %}
+<div class="wb-pager">
+  <div class="wb-pager-info">共 <b>{{ total }}</b> 条 · 第 <b>{{ page }}</b> / {{ pages }} 页</div>
+  <div class="wb-pager-nav">
+    {% if page > 1 %}
+      <a class="wb-pg" href="{{ mk_url(page - 1) }}" rel="prev">上一页</a>
+    {% else %}
+      <span class="wb-pg is-off">上一页</span>
+    {% endif %}
+
+    {% for p in page_window(page, pages) %}
+      {% if p is none %}
+        <span class="wb-pg-gap">…</span>
+      {% elif p == page %}
+        <span class="wb-pg on">{{ p }}</span>
+      {% else %}
+        <a class="wb-pg" href="{{ mk_url(p) }}">{{ p }}</a>
+      {% endif %}
+    {% endfor %}
+
+    {% if page < pages %}
+      <a class="wb-pg" href="{{ mk_url(page + 1) }}" rel="next">下一页</a>
+    {% else %}
+      <span class="wb-pg is-off">下一页</span>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{# 健康度环：跟资源占用环**颜色逻辑相反** —— 分越高越好，所以颜色由调用方给。
+   尺寸可调，文字走 --fs-3，别在 SVG 里写死字号。 #}
+{% macro ring_score(pct, color, text='', size=64) -%}
+{% set p = 0 if pct is none else (pct if pct <= 100 else 100) %}
+{% set r = 20 %}
+{% set c = 125.66 %}
+<svg class="wb-ring wb-ring-lg" width="{{ size }}" height="{{ size }}" viewBox="0 0 46 46" aria-hidden="true">
+  <circle class="bgc" cx="23" cy="23" r="{{ r }}"/>
+  <circle class="fgc" cx="23" cy="23" r="{{ r }}" stroke="{{ color }}"
+          stroke-dasharray="{{ (p * c / 100)|round(1) }} {{ c }}"
+          transform="rotate(-90 23 23)"/>
+  <text x="23" y="27" text-anchor="middle">{{ text }}</text>
+</svg>
+{%- endmacro %}
+
+{# 环形进度：46px，r=18（周长 113.1），颜色随占用率走 #}
+{% macro ring(pct, text='') -%}
+{% set p = 0 if pct is none else (pct if pct <= 100 else 100) %}
+{% set color = '#2E7D32' if p < 60 else ('#B26A00' if p < 85 else '#A32D2D') %}
+<svg class="wb-ring" width="46" height="46" viewBox="0 0 46 46" aria-hidden="true">
+  <circle class="bgc" cx="23" cy="23" r="18"/>
+  <circle class="fgc" cx="23" cy="23" r="18" stroke="{{ color }}"
+          stroke-dasharray="{{ (p * 1.131)|round(1) }} 113.1"
+          transform="rotate(-90 23 23)"/>
+  <text x="23" y="27" text-anchor="middle">{{ text }}</text>
+</svg>
+{%- endmacro %}
+
+{# ------------------------------------------------------------------ 图标
+   一套 24×24 描边图标，页面里统一用这个，别各写各的 SVG。
+   stroke 跟随 currentColor，尺寸默认 16。 #}
+{% macro icon(name, size=16) -%}
+<svg class="wb-ic" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none"
+     stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'server' -%}
+  <rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/><path d="M7 7h.01M7 17h.01"/>
+{%- elif name == 'folder' -%}
+  <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.2l2 2h7.8A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/>
+{%- elif name == 'clock' -%}
+  <circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>
+{%- elif name == 'gear' -%}
+  <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 8.6 19a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H2a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 3.6 8a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H8a1.6 1.6 0 0 0 1-1.5V2a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V8a1.6 1.6 0 0 0 1.5 1H22a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>
+{%- elif name == 'activity' -%}
+  <path d="M3 12h4l2.5-6 4 12 2.5-6H21"/>
+{%- elif name == 'search' -%}
+  <circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>
+{%- elif name == 'cloud' -%}
+  <path d="M17.5 19a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.6 1.6A3.7 3.7 0 0 0 6.5 19z"/>
+{%- elif name == 'key' -%}
+  <circle cx="8" cy="8" r="4"/><path d="m10.8 10.8 8 8M16 16l2-2M18.5 18.5l2-2"/>
+{%- elif name == 'check' -%}
+  <path d="m4.5 12.5 5 5 10-11"/>
+{%- elif name == 'alert' -%}
+  <path d="M12 4.5 21 19.5H3z"/><path d="M12 10v4M12 17h.01"/>
+{%- elif name == 'close' -%}
+  <path d="m6 6 12 12M18 6 6 18"/>
+{%- elif name == 'info' -%}
+  <circle cx="12" cy="12" r="8.5"/><path d="M12 11v5M12 7.8h.01"/>
+{%- elif name == 'plus' -%}
+  <path d="M12 5v14M5 12h14"/>
+{%- elif name == 'arrow' -%}
+  <path d="M5 12h13M13 6.5 18.5 12 13 17.5"/>
+{%- elif name == 'plug' -%}
+  <path d="M9 3v6M15 3v6M6 9h12v3a6 6 0 0 1-12 0z"/><path d="M12 18v3"/>
+{%- elif name == 'bell' -%}
+  <path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 0 0 3 0"/>
+{%- elif name == 'shield' -%}
+  <path d="M12 3 20 6v6c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V6z"/>
+{%- elif name == 'scan' -%}
+  <path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M4 12h16"/>
+{%- elif name == 'edit' -%}
+  <path d="M4 20h4l10-10-4-4L4 16z"/><path d="m14 6 4 4"/>
+{%- elif name == 'list' -%}
+  <path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>
+{%- elif name == 'refresh' -%}
+  <path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 5v6h-6"/>
+{%- elif name == 'trash' -%}
+  <path d="M4 7h16M9.5 7V5.2A1.2 1.2 0 0 1 10.7 4h2.6a1.2 1.2 0 0 1 1.2 1.2V7"/>
+  <path d="M6.5 7l.9 12.1A1.9 1.9 0 0 0 9.3 21h5.4a1.9 1.9 0 0 0 1.9-1.9L17.5 7"/>
+  <path d="M10.5 11v6M13.5 11v6"/>
+{%- elif name == 'ext' -%}
+  <path d="M14 4h6v6"/><path d="M20 4l-8.5 8.5"/><path d="M18 14.5V19a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 19V7.5A1.5 1.5 0 0 1 5 6h4.5"/>
+{%- elif name == 'link' -%}
+  <path d="M10.5 13.5a4 4 0 0 0 5.7 0l2.1-2.1a4 4 0 0 0-5.7-5.7l-1.2 1.2"/>
+  <path d="M13.5 10.5a4 4 0 0 0-5.7 0l-2.1 2.1a4 4 0 0 0 5.7 5.7l1.2-1.2"/>
+{%- elif name == 'laptop' -%}
+  <rect x="4" y="5" width="16" height="10.5" rx="1.6"/><path d="M2.5 19h19"/>
+{%- elif name == 'sparkle' -%}
+  <path d="M12 3.5 13.8 9l5.5 1.8-5.5 1.8L12 18l-1.8-5.4L4.7 10.8 10.2 9z"/>
+  <path d="M18.5 16.5 19.3 19l2.5.8-2.5.8-.8 2.4-.8-2.4-2.4-.8 2.4-.8z"/>
+{%- elif name == 'bug' -%}
+  <circle cx="12" cy="13" r="5.2"/><path d="M12 7.8V5M8.5 9 6.6 7M15.5 9l1.9-2"/>
+  <path d="M6.8 13H4M20 13h-2.8M7.5 16.5 5 18.4M16.5 16.5 19 18.4"/>
+{%- elif name == 'book' -%}
+  <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H19v14.5H5.5A1.5 1.5 0 0 0 4 20z"/>
+  <path d="M4 17.5A1.5 1.5 0 0 1 5.5 16H19"/>
+{%- elif name == 'branch' -%}
+  <circle cx="7" cy="6" r="2.2"/><circle cx="7" cy="18" r="2.2"/><circle cx="17" cy="9" r="2.2"/>
+  <path d="M7 8.2v7.6"/><path d="M17 11.2c0 3.2-2.6 4.4-6 4.6"/>
+{%- elif name == 'rocket' -%}
+  <path d="M12.5 3.5c3 1.4 5 4.6 5 8.2L14 15H10L6.5 11.7c0-3.6 2-6.8 5-8.2z" />
+  <circle cx="12" cy="9" r="1.6"/><path d="M10 15l-2.5 4.5M14 15l2.5 4.5"/>
+{%- elif name == 'commit' -%}
+  <circle cx="12" cy="12" r="3.4"/><path d="M3 12h5.6M15.4 12H21"/>
+{%- elif name == 'back' -%}
+  <path d="M4 12h13a4 4 0 0 0 0-8h-3"/><path d="M8.5 7.5 4 12l4.5 4.5"/>
+{%- elif name == 'py' -%}
+  <path d="M12 3.5c-3 0-4 1-4 3v2h8v1.5H6.5C4.5 10 3.5 11.5 3.5 14s1 4 3 4H8v-2.5c0-2 1-3 3-3h4.5c1.6 0 2.5-1 2.5-2.5V6.5c0-2-1.5-3-6-3z"/>
+  <circle cx="9.5" cy="6.2" r=".9"/><circle cx="14.5" cy="17.8" r=".9"/>
+{%- elif name == 'node' -%}
+  <path d="M12 3.2 20 7.6v8.8L12 20.8 4 16.4V7.6z"/><path d="M12 8.5v7"/>
+{%- elif name == 'go' -%}
+  <circle cx="9" cy="12" r="4.2"/><circle cx="16.5" cy="12" r="3.2"/><path d="M2.5 10.5h3"/>
+{%- elif name == 'java' -%}
+  <path d="M8 16.5c0 1.6 2 2.5 4.5 2.5s4.5-.9 4.5-2.5"/>
+  <path d="M11 13.5c-2-1.6-.5-3 1-4.5 1.6-1.6 2-3 1-4.5"/>
+  <path d="M6.5 19.5h11"/>
+{%- elif name == 'static' -%}
+  <rect x="3.5" y="4.5" width="17" height="15" rx="1.8"/><path d="M3.5 9h17"/><path d="M6.5 6.7h.01M9 6.7h.01"/>
+{%- elif name == 'none' -%}
+  <circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7"/>
+{%- else -%}
+  <circle cx="12" cy="12" r="8.5"/>
+{%- endif -%}
+</svg>
+{%- endmacro %}
+
+
+{# 带图标的彩色状态标签：kind = ok / warn / err / info / brand / mut #}
+{% macro tag(text, kind='mut', name='') -%}
+<span class="wb-tg t-{{ kind }}">{% if name %}{{ icon(name, 12) }}{% endif %}{{ text }}</span>
+{%- endmacro %}
+
+
+{# 空态引导：标题 + 一句说明 + 最多三步卡片 + 动作
+   steps 传 [(图标名, 标题, 说明), ...] #}
+{% macro guide(ic, title, lead='', steps=None, cta='', act='') -%}
+<div class="wb-guide">
+  <div class="wb-guide-ic">{{ icon(ic, 30) }}</div>
+  <div class="wb-guide-t">{{ title }}</div>
+  {% if lead %}<div class="wb-guide-d">{{ lead }}</div>{% endif %}
+  {% if steps %}
+  <ol class="wb-guide-steps">
+    {% for s in steps %}
+    <li>
+      <span class="n">{{ loop.index }}</span>
+      <span class="ic">{{ icon(s[0], 17) }}</span>
+      <b>{{ s[1] }}</b>
+      <em>{{ s[2] }}</em>
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  {% if cta %}
+  <div class="wb-guide-act">{{ cta|safe }}</div>
+  {% endif %}
+  {% if act %}<div class="wb-guide-foot">{{ act|safe }}</div>{% endif %}
+</div>
+{%- endmacro %}

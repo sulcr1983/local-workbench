@@ -1,0 +1,15 @@
+#!/bin/sh
+# commit-msg：拒绝「wip」「update」「修改」这类等于没写的信息
+set -u
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+GUARD="$ROOT/scripts/git_guard.py"
+[ -f "$GUARD" ] || exit 0
+
+PY=""
+for cand in "$ROOT/.venv/Scripts/python.exe" "$ROOT/.venv/bin/python" python3 python py; do
+    if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+done
+[ -n "$PY" ] || exit 0
+
+exec "$PY" "$GUARD" commit-msg "$1"

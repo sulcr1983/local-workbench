@@ -1,0 +1,34 @@
+<header class="wb-top">
+  <div class="wb-crumb"><b>{{ crumb|default('工作台') }}</b>{% if crumb_sub %} · {{ crumb_sub }}{% endif %}</div>
+
+  <div class="wb-searchbox">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>
+    </svg>
+    <input id="wb-q" type="search" placeholder="搜索项目 / 服务器…" aria-label="搜索"
+           {% if not search_enabled|default(false) %}readonly data-hint="搜索在「项目档案」页可用"{% endif %}>
+    <span class="wb-kbd">⌘K</span>
+  </div>
+
+  {# 这个按钮干的是「刷新当前页的数据」，三种页面三种动作：
+     服务器 → 刷 SSH 巡检；到期 → 重查域名/证书/云实例；其它 → 重扫项目。
+     页面工具条里不要再放第二颗刷新 —— 以前服务器页和到期页都各有一颗重复的。 #}
+  {% set _act = active|default('') %}
+  {% if _act == 'servers' %}
+    {% set act = 'servers' %}{% set act_label = '刷新服务器' %}
+    {% set act_tip = '重新连接所有服务器，采一轮最新指标' %}
+  {% elif _act == 'expiries' %}
+    {% set act = 'expiries' %}{% set act_label = '刷新到期' %}
+    {% set act_tip = '重新查一遍域名、证书和云实例的到期日' %}
+  {% else %}
+    {% set act = 'projects' %}{% set act_label = '刷新全部' %}
+    {% set act_tip = '重扫所有项目文件夹' %}
+  {% endif %}
+  <button class="wb-btn pri" id="wb-refresh" type="button"
+          data-act="{{ act }}" title="{{ act_tip }}">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7"/>
+    </svg>
+    <span>{{ act_label }}</span>
+  </button>
+</header>

@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="wb-ph">
+  <div class="wb-ph-line">
+    <h1>{{ page_title }}</h1>
+    <div class="wb-eyebrow">{{ page_code }}</div>
+  </div>
+  {% if page_sub %}<div class="sub">{{ page_sub }}</div>{% endif %}
+</div>
+
+<div class="wb-card">
+  <div class="wb-ch">
+    <h2>{% if status == 404 %}页面不存在{% elif status == 405 %}这个地址不能用这种方式打开{% else %}这一页还没接上{% endif %}</h2>
+    <span class="hint">{{ stage }}</span>
+  </div>
+  <div class="wb-cb">
+    <div class="wb-empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/><path d="M12 8v4.5"/><path d="M12 16h.01"/>
+      </svg>
+      <div>
+        <b>{% if status == 404 %}你要找的地址不存在{% elif status == 405 %}请回到页面上用按钮操作{% else %}骨架已就位，功能按任务顺序接入{% endif %}</b>
+        <div>{% if status == 404 %}检查一下地址，或者回到<a href="{{ url_for('projects.index') }}">项目档案</a>。{% elif status == 405 %}在地址栏直接回车不会显示内容，回到<a href="{{ url_for('projects.index') }}">项目档案</a>点按钮即可。{% else %}当前进度见 <span class="wb-mono">docs/TASKS.md</span>；这一页会在对应任务里替换成真实内容。{% endif %}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

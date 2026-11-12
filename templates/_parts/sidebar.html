@@ -1,0 +1,75 @@
+<aside class="wb-rail">
+  <div class="wb-brand">
+    <div class="wb-brand-m">
+      <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+        <path d="M7.4 1h11.2A6.4 6.4 0 0 1 25 7.4v9.2L16.6 25H7.4A6.4 6.4 0 0 1 1 18.6V7.4A6.4 6.4 0 0 1 7.4 1Z" fill="currentColor"/>
+        <path d="M15.8 9.4H11a2 2 0 0 0 0 4h2.4a2 2 0 0 1 0 4H9.6" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div>
+      <div class="wb-brand-t">Supersu <span>工作台</span></div>
+      <div class="wb-brand-s">项目 · 服务器 · 云资源</div>
+    </div>
+  </div>
+
+  <div class="wb-rail-lab">工作区</div>
+  <nav class="wb-nav">
+    {% if ui.show_overview %}
+    <a href="{{ url_for('pages.overview') }}" class="{{ 'on' if active == 'overview' }}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 10l9-7 9 7v9a2 2 0 0 1-2 2h-4v-6H9v6H5a2 2 0 0 1-2-2z"/>
+      </svg>
+      <span>库存总览</span>
+      {% if counts.overview %}<span class="cnt">{{ counts.overview }}</span>{% endif %}
+    </a>
+    {% endif %}
+
+    <a href="{{ url_for('projects.index') }}" class="{{ 'on' if active == 'projects' }}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      </svg>
+      <span>项目档案</span>
+      {% if counts.projects %}<span class="cnt">{{ counts.projects }}</span>{% endif %}
+    </a>
+
+    <a href="{{ url_for('servers.index') }}" class="{{ 'on' if active == 'servers' }}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/>
+      </svg>
+      <span>服务器和云资源</span>
+      {% if counts.servers %}<span class="cnt">{{ counts.servers }}</span>{% endif %}
+    </a>
+
+    {% if ui.show_expiries %}
+    <a href="{{ url_for('expiries.index') }}" class="{{ 'on' if active == 'expiries' }}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3 20 6.5v5.8c0 4.4-3.2 7.5-8 8.7-4.8-1.2-8-4.3-8-8.7V6.5z"/>
+        <path d="M12 8.5v4M12 15.8h.01"/>
+      </svg>
+      {# 叫「到期提醒」人会以为只是提醒，不会想到域名和 SSL 在这里管。
+         这是用户真实踩过的坑：「其他云资源的添加入口在哪儿？」 #}
+      <span>域名 / 证书</span>
+      {% if counts.expiries %}<span class="cnt">{{ counts.expiries }}</span>{% endif %}
+    </a>
+    {% endif %}
+
+    <a href="{{ url_for('settings.index') }}" class="{{ 'on' if active == 'settings' }}">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9.6a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>
+      </svg>
+      <span>设置</span>
+    </a>
+  </nav>
+
+  {% if rail %}
+  <div class="wb-rail-foot">
+    <div class="t">{{ rail.label }}</div>
+    <div class="n">{{ rail.value }}</div>
+    <div class="d">{{ rail.hint }}</div>
+    {% if rail.pct is not none %}
+    <div class="wb-mini-bar"><i style="width:{{ rail.pct }}%"></i></div>
+    {% endif %}
+  </div>
+  {% endif %}
+</aside>
