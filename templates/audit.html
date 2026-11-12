@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% from '_parts/ui.html' import badge, empty, pager, icon, tag %}
+
+{% block content %}
+<div class="wb-ph">
+  <div class="wb-ph-line">
+    <h1>操作记录</h1>
+    <div class="wb-eyebrow">AUDIT / 006</div>
+    <div class="wb-ph-meta">{{ total_all }} 条记录</div>
+  </div>
+  <div class="sub">这台机器上所有写操作都留了一条：改了哪个项目、动了哪台服务器、什么时候导出了配置。</div>
+  <div class="wb-tools" style="margin-top:8px">
+    <a class="wb-btn ghost" href="{{ url_for('audit.export_csv') }}">导出 CSV</a>
+  </div>
+</div>
+
+<div class="wb-card">
+  {% if items %}
+  <table class="wb-tbl">
+    <thead>
+      <tr>
+        <th style="width:150px">时间</th>
+        <th style="width:132px">操作</th>
+        <th>对象</th>
+        <th style="width:52px">结果</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td class="wb-mono wb-fs1 wb-nowrap">{{ it.ts }}</td>
+        <td class="wb-nowrap">{{ badge(it.action, it.kind) }}</td>
+        <td class="wb-mut2">{{ it.detail or '—' }}</td>
+        <td class="wb-ok-mark" title="成功">{{ icon('check', 13) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {{ pager(page.page, page.pages, page.total, mk_url) }}
+  {% else %}
+    {{ empty('还没有记录', '等你改一个项目名称、加一台服务器，这里就会开始有东西。') }}
+  {% endif %}
+</div>
+{% endblock %}

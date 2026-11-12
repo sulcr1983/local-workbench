@@ -1,0 +1,16 @@
+#!/bin/sh
+# pre-push：主仓库永远不许直接 push，唯一出口是 scripts/publish_public.py
+set -u
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+GUARD="$ROOT/scripts/git_guard.py"
+[ -f "$GUARD" ] || exit 0
+
+PY=""
+for cand in "$ROOT/.venv/Scripts/python.exe" "$ROOT/.venv/bin/python" python3 python py; do
+    if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+done
+[ -n "$PY" ] || { echo "[门禁] 找不到 python，拒绝 push" >&2; exit 1; }
+
+# $1 = remote 名，$2 = remote URL；stdin 里是待推送的 ref 列表
+exec "$PY" "$GUARD" pre-push "${1:-?}" "${2:-?}"

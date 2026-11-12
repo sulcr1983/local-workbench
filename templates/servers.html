@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% from '_parts/ui.html' import badge, empty, pager, bar, icon, tag, guide %}
+
+{% block content %}
+<div class="wb-ph">
+  <div class="wb-ph-line">
+    <h1>服务器和云资源</h1>
+    <div class="wb-eyebrow">SERVERS / 003</div>
+    <div class="wb-ph-meta">{{ online }} / {{ total_all }} 在线</div>
+  </div>
+  <div class="sub">
+    {% if total_all %}
+      {{ total_all }} 台在册，{{ online }} 台在线。指标是「刷新全部」那一刻的快照，不是实时流。
+    {% else %}
+      加上你的服务器，工作台会用 SSH 连过去做只读巡检：负载、内存、磁盘、容器、端口。
+    {% endif %}
+  </div>
+</div>
+
+{% if alerts %}
+<div class="wb-alertbar">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 9v4"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="9"/>
+  </svg>
+  <b>{{ alerts|length }} 台超过阈值</b>
+  <span>{{ alerts | map(attribute='name') | join(' · ') }}</span>
+</div>
+{% endif %}
+
+<div class="wb-tools">
+  <div class="wb-chips">
+    {% for key, label in [('all','全部'), ('online','在线'), ('offline','离线'), ('alert','告警')] %}
+      <a class="wb-chip {{ 'on' if flt == key }}" href="{{ url_for('servers.index', flt=key) }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <div class="wb-right wb-row" style="gap:6px">
+    {# 域名 / 证书 / 云服务器到期都在那一页。原来这里写「到期提醒」，
+       用户想管域名时想不到点它，等于入口不存在。 #}
+    <a class="wb-btn ghost" href="{{ url_for('expiries.index') }}"
+       title="域名、SSL 证书、云服务器到期日">
+      {{ icon('shield', 14) }} 域名 / 证书{% if counts.expiries %} <span class="wb-bdg b-err">{{ counts.expiries }}</span>{% endif %}
+    </a>
+    <form method="post" action="{{ url_for('servers.refresh_now') }}" id="srv-refresh-form">
+      <button class="wb-btn" type="submit" id="srv-refresh-all">刷新全部</button>
+    </form>
+    <button class="wb-btn" type="button" data-mbx-open="mbx-server" data-mode="add">手动添加</button>
+    <button class="wb-btn pri" type="button" data-mbx-open="mbx-discover">一键发现</button>
+  </div>
+</div>
+
+{% if cards %}
+<div class="wb-srvgrid">
+  {% for c in cards %}
+  <div class="wb-srvcard {{ 'is-off' if not c.online }} {{ 'is-alert' if c.alert }}"
+       data-srv='{{ {"id": c.id, "name": c.name, "host": c.host, "port": c.port, "user": c.user,
+                      "auth": c.auth, "grp": c.grp, "note": c.note} | tojson }}'>
+    <div class="wb-srvcard-hd">
+      <span class="wb-dot {{ 'on' if c.online else 'off' }}"></span>
+      {# 整行标题可点进详情 —— 少一个「详情」按钮，少一次瞄准 #}
+      <a class="wb-grow wb-srvlink" href="{{ url_for('servers.detail', sid=c.id) }}"
+         title="看这台机器的详情">
+        <span class="wb-srvname">{{ c.name }}
+          {% if c.grp %}<span class="wb-bdg b-mut">{{ c.grp }}</span>{% endif %}
+          {% if c.alert %}<span class="wb-bdg b-err">超阈值</span>{% endif %}
+          {% if c.name == c.host %}<span class="wb-bdg b-warn" title="还用的是地址当名字">没起名</span>{% endif %}
+        </span>
+        <span class="wb-srvhost wb-mono">{{ c.user }}@{{ c.host }}:{{ c.port }}</span>
+        {% if c.note %}
+        <span class="wb-srvnote">{{ icon('info', 11) }} {{ c.note }}</span>
+        {% endif %}
+      </a>
+      <button class="wb-iconbtn" type="button" data-reconnect-card="{{ c.id }}"
+              title="{{ '重新连接这一台' if not c.online else '刷新这一台' }}">{{ icon('refresh', 15) }}</button>
+      <button class="wb-iconbtn" type="button" data-mbx-open="mbx-server" data-mode="edit"
+              title="编辑">{{ icon('edit', 15) }}</button>
+      <button class="wb-iconbtn danger" type="button" data-del-srv="{{ c.id }}"
+              data-srv-name="{{ c.name }}" title="删除这台">{{ icon('trash', 15) }}</button>
+    </div>
+
+    <div class="wb-srvcard-bd">
+      {% if c.online %}
+        <div class="wb-mgrid">
+          <div><span>主机</span><b>{{ c.hostname or '—' }}</b></div>
+          <div><span>负载</span><b>{{ c.load1 if c.load1 is not none else '—' }}</b></div>
+          <div><span>容器</span><b>{{ c.containers|length }}</b></div>
+          <div><span>端口</span><b>{{ c.ports|length }}</b></div>
+        </div>
+
+        <div class="wb-resbar">
+          <span>内存</span>
+          {{ bar(c.mem_pct or 0) }}
+          <b>{{ (c.mem_pct ~ '%') if c.mem_pct is not none else '—' }}</b>
+        </div>
+        <div class="wb-resbar">
+          <span>磁盘</span>
+          {{ bar(c.disk_pct or 0) }}
+          <b>{{ (c.disk_pct ~ '%') if c.disk_pct is not none else '—' }}</b>
+        </div>
+
+        {% if c.containers %}
+        <div class="wb-srv-tags">
+          {% for name in c.containers[:4] %}<span class="wb-tag">{{ name }}</span>{% endfor %}
+          {% if c.containers|length > 4 %}<span class="wb-tag">+{{ c.containers|length - 4 }}</span>{% endif %}
+        </div>
+        {% endif %}
+        <div class="wb-srv-ts wb-mono">采集于 {{ c.ts[5:16] if c.ts else '—' }}</div>
+      {% else %}
+        {# 从未采集过和采集失败是两回事，不能都用红块吓人；5 张卡同一句红字等于噪音 #}
+        {% if c.ts %}
+          <div class="wb-srv-state">{{ tag('采集失败', 'err', 'alert') }}<span class="wb-fs1 wb-mut2">上次尝试 {{ c.ts[5:16] }}</span></div>
+          <div class="wb-srv-err">{{ c.error or '这台机器没响应，检查地址 / 防火墙 / 凭据' }}</div>
+        {% else %}
+          <div class="wb-srv-state">{{ tag('未采集', 'mut', 'info') }}<span class="wb-fs1 wb-mut2">从没连过</span></div>
+          <div class="wb-srv-err">点右上「刷新全部」拉一次；连不上会写明原因。</div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{{ pager(page.page, page.pages, page.total, mk_url) }}
+{% else %}
+<div class="wb-card">
+  {% if flt == 'all' %}
+  {% set cta %}
+    <button class="wb-btn pri" type="button" data-mbx-open="mbx-discover">{{ icon('scan', 15) }} 一键发现</button>
+    <button class="wb-btn ghost" type="button" data-mbx-open="mbx-server" data-mode="add">手动添加</button>
+  {% endset %}
+  {% set foot %}
+    想连云上的机器？先在<a href="{{ url_for('expiries.index') }}">到期提醒</a>里填一次
+    腾讯云 / 阿里云 / 华为云的 AK/SK（只有第一次要填），之后「一键发现」会把云上实例一起列出来。
+  {% endset %}
+  {{ guide(
+       'server',
+       '还没有服务器',
+       '大部分活系统自己干，你只补它干不了的那两件。',
+       steps=[
+         ('scan',   '一键发现', '扫本机 SSH 配置、连过的机器、项目文档里的地址'),
+         ('cloud',  '连云账号', '填一次 AK/SK，云上实例连带 IP 一起列出来'),
+         ('key',    '补密码',   '只有密码登录的机器需要你填一次，密钥的不用管')
+       ],
+       cta=cta,
+       act=foot
+  ) }}
+  {% else %}
+    {{ empty('这个筛选下没有服务器', '换一个筛选看看，或者点「全部」。') }}
+  {% endif %}
+</div>
+{% endif %}
+
+{% include '_parts/modal_server.html' %}
+{% include '_parts/modal_discover.html' %}
+<script src="{{ url_for('static', filename='server_detail.js') }}"></script>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='discover.js') }}"></script>
+{% endblock %}

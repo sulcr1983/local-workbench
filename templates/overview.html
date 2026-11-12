@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+{% from '_parts/ui.html' import badge, empty %}
+
+{% block content %}
+<div class="wb-ph">
+  <div class="wb-ph-line">
+    <h1>库存总览</h1>
+    <div class="wb-eyebrow">OVERVIEW / 001</div>
+  </div>
+  <div class="sub">一眼看清手上有什么、哪些在动、哪些该收尾。数字来自扫描后的项目表，不是目录数。</div>
+</div>
+
+<div class="wb-stat-strip">
+  <div class="wb-stat" style="--c:#2F6FED">
+    <div class="lab">项目在册</div><div class="num">{{ stats.total }}</div>
+    <div class="desc">扫描后认出来的项目</div>
+  </div>
+  <div class="wb-stat" style="--c:#2E7D32">
+    <div class="lab">近 7 天活跃</div><div class="num">{{ stats.active }}</div>
+    <div class="desc">最后提交在 7 天内</div>
+  </div>
+  <div class="wb-stat" style="--c:#B26A00">
+    <div class="lab">放缓 / 停滞</div><div class="num">{{ stats.slow }}</div>
+    <div class="desc">8–90 天没动</div>
+  </div>
+  <div class="wb-stat" style="--c:#A32D2D">
+    <div class="lab">可能废弃</div><div class="num">{{ stats.dead }}</div>
+    <div class="desc">&gt; 90 天没动</div>
+  </div>
+</div>
+
+{% if expiring %}
+<div class="wb-card">
+  <div class="wb-ch">
+    <h2>即将到期（30 天内）</h2>
+    <a class="hint" href="{{ url_for('expiries.index') }}" style="text-decoration:none">查看全部 →</a>
+  </div>
+  <div class="wb-cb" style="padding:0 15px">
+    <div class="wb-exp-strip">
+      {% for e in expiring %}
+      <a class="wb-attn" href="{{ url_for('expiries.index') }}">
+        <span class="wb-av" style="background:{{ '#A32D2D' if e.cls == 'err' else ('#B26A00' if e.cls == 'warn' else '#8A6D00') }}">{{ e.name[:1] }}</span>
+        <span class="wb-txt">
+          <span class="nm">{{ e.name }}</span>
+          <span class="why">{{ e.expire }} · {{ e.kind }}</span>
+        </span>
+        {{ badge(e.label, e.cls) }}
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="wb-two">
+  <div class="wb-stack">
+    <div class="wb-card">
+      <div class="wb-ch"><h2>需要你注意</h2><span class="hint">按未提交数排序</span></div>
+      <div class="wb-cb">
+        {% if attention %}
+          {% for a in attention %}
+          <div class="wb-attn">
+            <span class="wb-av">{{ a.name[:1] }}</span>
+            <span class="wb-txt">
+              <span class="nm">{{ a.name }}</span>
+              <span class="why">最近 {{ a.last or '—' }}{% if a.unpushed_n %} · {{ a.unpushed_n }} 个提交没推{% endif %}</span>
+            </span>
+            {{ badge(a.dirty_n ~ ' 未提交', 'err') }}
+          </div>
+          {% endfor %}
+        {% else %}
+          {{ empty('没有未提交的改动', '工作区都是干净的。') }}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>需要你处理</h2><span class="hint">按影响排序</span></div>
+      {% if todo %}
+      <table class="wb-tbl">
+        <tbody>
+          {% for t in todo %}
+          <tr>
+            <td style="width:112px">{{ badge(t.bdg, t.cls) }}</td>
+            <td>{{ t.text }}</td>
+            <td class="right"><a class="wb-btn sm ghost" href="{{ t.href }}">{{ t.act }}</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        {{ empty('暂时没有要处理的', '项目、服务器、到期都正常。') }}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="wb-stack">
+    <div class="wb-card">
+      <div class="wb-ch"><h2>最近有动静</h2></div>
+      <div class="wb-cb">
+        {% if recent %}
+        <div class="wb-tl">
+          {% for r in recent %}
+          <div class="it"><span>{{ r.name }}</span><span class="d">{{ r.when }}</span></div>
+          {% endfor %}
+        </div>
+        {% else %}
+          {{ empty('还没有提交记录', '等有 git 仓库的项目扫进来。') }}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch">
+        <h2>我的服务器</h2>
+        <span class="hint">{{ online }} / {{ servers|length }} 在线</span>
+      </div>
+      <div class="wb-cb">
+        {% if servers %}
+          {% for s in servers %}
+          <a class="wb-srv-mini" href="{{ url_for('servers.detail', sid=s.id) }}">
+            <span class="wb-dot {{ 'on' if s.online else 'off' }}"></span>
+            <b>{{ s.name }}</b>
+            <span class="wb-right wb-fs1 wb-mut2">{{ s.note }}</span>
+          </a>
+          {% endfor %}
+        {% else %}
+          {{ empty('还没有服务器', '去「服务器和云资源」加一台。') }}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>最近操作</h2><a class="hint" href="{{ url_for('audit.index') }}" style="text-decoration:none">全部 →</a></div>
+      {% if audits %}
+      <table class="wb-tbl">
+        <tbody>
+          {% for a in audits %}
+          <tr>
+            <td class="wb-mono wb-fs1" style="width:64px">{{ a.ts }}</td>
+            <td>{{ a.action }}</td>
+            <td class="wb-mut2 wb-fs1 wb-nowrap" style="text-align:right">{{ a.detail[:18] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        {{ empty('还没有操作记录', '') }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

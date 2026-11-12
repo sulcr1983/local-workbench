@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# 运行时数据（本机私有，绝不入仓）
+data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# 发布压缩包（靠 VERSION + CHANGELOG 还原）
+release/*.zip
+release/*.sha256
+
+# 编辑器 / 系统
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

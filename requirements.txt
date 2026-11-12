@@ -1,0 +1,27 @@
+# Supersu 工作台 · 运行依赖
+# 清单与技术选型理由见 docs/TECH_SPEC.md §2；每加一项都要在那里登记。
+#
+# 装法：双击 start.bat（首次自动建 .venv 并安装），或手动
+#   python -m venv .venv
+#   .venv\Scripts\python -m pip install -r requirements.txt
+
+# ---------- Web 框架 ----------
+Flask==3.1.*            # 路由 / 请求 / 静态 / 模板
+Jinja2>=3.1             # Flask 自带，显式声明版本
+waitress==3.0.*         # WSGI 服务器（Windows 友好，无 fork）
+
+# ---------- 服务器巡检 ----------
+paramiko==3.5.*         # SSH：密码 / 密钥 / passphrase / 跳板机（LGPL-2.1，见 THIRD-PARTY-NOTICES.md）
+
+# ---------- 到期采集与通知 ----------
+requests==2.32.*        # RDAP / 自定义 provider / Webhook
+APScheduler==3.10.*     # 【锁 3.x】4.0 是重写版，BackgroundScheduler 已并入 Scheduler，升级需重写 scheduler.py
+
+# ---------- README 渲染 ----------
+markdown==3.7.*         # Markdown → HTML
+nh3==0.2.*              # HTML 净化（Rust ammonia 绑定）
+
+# ---------- 云厂商 SDK（瘦包，每家只含 ECS/CVM 一个产品）----------
+tencentcloud-sdk-python-cvm==3.*
+alibabacloud_ecs20140526==3.*
+huaweicloudsdkecs==3.*
