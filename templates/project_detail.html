@@ -1,0 +1,435 @@
+{% extends 'base.html' %}
+{% from '_parts/ui.html' import badge, empty, bar, icon, ring_score %}
+
+{% set ACTIVE_KIND = {'活跃': 'ok', '放缓': 'warn', '停滞': 'warn', '可能废弃': 'err', '未知': 'mut',
+                      '进行中': 'brand', '已完成': 'ok', '归档': 'mut', '忽略': 'mut'} %}
+{% set SRC_LABEL = {'readme_h1': 'README 标题', 'manifest': '清单文件', 'dirname': '目录名'} %}
+{% set STACK_TXT = {'py': 'Python', 'node': 'Node', 'go': 'Go', 'java': 'Java',
+                    'static': '静态页', 'none': '未识别'} %}
+
+{% block content %}
+<div class="wb-hero">
+  <a class="wb-back" href="{{ url_for('projects.index') }}" title="返回列表">←</a>
+  <div class="wb-hav" style="background:{{ p.color }}">{{ p.avatar }}</div>
+  <div class="wb-grow">
+    <h1>{{ p.name }}{% if p.pinned %} {{ badge('置顶', 'brand') }}{% endif %}</h1>
+    <div class="wb-hero-meta">
+      <span class="wb-kw">
+        <span class="kw-{{ stack_key }}">{{ icon(stack_key, 11) }}{{ p.stack }}</span>
+        {% if p.is_git %}<span class="kw-git">{{ icon('branch', 11) }}Git</span>{% endif %}
+        {% if p.run_local %}<span class="kw-local">{{ icon('laptop', 11) }}本机</span>{% endif %}
+        {% if linked_servers %}<span class="kw-srv">{{ icon('server', 11) }}{{ linked_servers|length }} 台</span>{% endif %}
+        {% if p.gh_url %}<a class="kw-repo" href="{{ p.gh_url }}" target="_blank" rel="noopener noreferrer">{{ icon('ext', 11) }}{{ p.gh_site }}</a>{% endif %}
+      </span>
+    </div>
+    <div class="wb-hero-note">
+      <span class="wb-mono">{{ p.path }}</span>
+    </div>
+  </div>
+  <div class="wb-hero-acts">
+    {# 只重扫这一个项目：改完 README / 刚提交完，秒出结果，不用等整盘 #}
+    <button class="wb-btn ghost" type="button" data-rescan="{{ rel }}"
+            title="只重扫这个项目">{{ icon('refresh', 14) }} 重扫</button>
+    <button class="wb-btn" type="button" data-open="{{ rel }}">{{ icon('folder', 14) }} 打开目录</button>
+    <button class="wb-btn ghost" type="button" data-mbx-open="mbx-edit">{{ icon('edit', 14) }} 编辑</button>
+  </div>
+</div>
+
+{# ---------------------------------------------------------------- 部署到哪儿
+   这一条上一版被我在重写模板时整块删掉了（CSS 还在、HTML 没了），是回归。
+   v2：选择服务器从「贴着按钮的小浮层」改成通用弹窗（mbx-deploy），未关联时整条高亮成 CTA ——
+   原来那个虚线灰字小 chip 混在一排 chip 里，谁也找不着。
+   已关联的仍然列 chip，不占两三行把截图和 README 挤下去。 #}
+{% set no_where = not p.run_local and not linked_servers %}
+<div class="wb-deploybar {{ 'is-empty' if no_where }}">
+  <span class="wb-dk">{{ icon('server', 13) }} 部署到</span>
+
+  {% if p.run_local %}
+  <button class="wb-srvchip on" type="button" data-local="0" data-rel="{{ rel }}"
+          title="点一下取消「跑在本机」">{{ icon('laptop', 12) }} 本机</button>
+  {% endif %}
+
+  {% for s in linked_servers %}
+  <span class="wb-srvchip on has-go">
+    {{ icon('server', 12) }} {{ s.name }}
+    <a class="wb-chipgo" href="{{ url_for('servers.detail', sid=s.id) }}"
+       title="去「{{ s.name }}」详情">↗</a>
+    <button class="wb-chipx" type="button" data-link-srv="{{ s.id }}" data-rel="{{ rel }}"
+            data-on="0" title="解除关联">✕</button>
+  </span>
+  {% endfor %}
+
+  {% if no_where %}
+  <span class="wb-dh">还没说跑在哪 —— 选一台</span>
+  {% endif %}
+
+  <button class="wb-btn {{ 'pri' if no_where else 'ghost sm' }} wb-deploycta" type="button"
+          data-mbx-open="mbx-deploy">
+    {{ icon('plus', 13) }} {{ '选服务器' if no_where else '换 / 加一台' }}
+  </button>
+</div>
+
+{# ---------------------------------------------------------------- 健康度
+   四项证据合成一个分：还在动吗 / 改动有归宿吗 / 别人看得懂吗 / 知道跑在哪吗。
+   单项直接写出缺什么，不给笼统的"良好"。 #}
+<div class="wb-health">
+  <div class="wb-health-score" style="--hc:{{ health.color }}">
+    <div class="ring">
+      {{ ring_score(health.score, health.color, health.score, 64) }}
+    </div>
+    <div class="txt">
+      <div class="g" style="color:{{ health.color }}">{{ health.grade }}</div>
+      <div class="s">健康度 {{ health.score }}/100</div>
+    </div>
+  </div>
+  <div class="wb-health-items">
+    {% for it in health.parts %}
+    <div class="wb-hitem">
+      <div class="t">{{ icon(it.icon, 13) }} {{ it.label }}</div>
+      <div class="bar"><i style="width:{{ it.pct }}%;background:{{ it.color }}"></i></div>
+      <div class="d" style="color:{{ it.color }}">{{ it.text }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{# ---------------------------------------------------------------- 提交节奏
+   单点「最后提交 2026-09-12」看不出是持续在写还是三个月前猛写一阵。
+   逐周柱子回答的是「最近还在动吗」。
+   非 git 项目也显示这一块 —— 但要说明白「没有记录」而不是画一排空柱子。 #}
+<div class="wb-card wb-rhythm">
+  <div class="wb-ch">
+    <h2>{{ icon('activity', 15) }}提交节奏</h2>
+    <span class="hint">
+      {%- if commits %}最近 8 周 · 本地 git 直读，不调 API
+      {%- elif p.is_git %}最近 8 周 · 这段时间没有提交
+      {%- else %}不是 git 仓库，没有提交记录{% endif -%}
+    </span>
+  </div>
+  <div class="wb-cb">
+    {% if commits %}
+    {# 列数跟着实际周数走：只有 2 周有数据时画 8 个槽位，等于用 6 个空格把图撑开 #}
+    <div class="wb-weeks" style="--n:{{ weeks|length }}">
+      {% for w in weeks %}
+      <div class="wb-week {{ 'has' if w.count }}" title="{{ w.label }} 那周 {{ w.count }} 次提交">
+        <div class="bar"><i style="height:{{ w.pct }}%"></i></div>
+        <div class="n">{{ w.count if w.count else '' }}</div>
+        <div class="l">{{ w.label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% if kind_rows %}
+    <div class="wb-kinds">
+      <span class="wb-dk">这 8 周的提交都在干什么</span>
+      {% for k in kind_rows %}
+      <span class="wb-kind" style="--kc:{{ k.color }}">
+        {{ icon(k.icon, 12) }}{{ k.label }} <b>{{ k.n }}</b>
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% elif p.is_git %}
+    <div class="wb-note">
+      {{ icon('info', 14) }}
+      <span><b>最近 8 周没有提交。</b>仓库在，但这段时间确实没动过 —— 或者提交时间在更早。</span>
+    </div>
+    {% else %}
+    <div class="wb-note">
+      {{ icon('alert', 14) }}
+      <span><b>这个目录不是 git 仓库，没有提交记录可看。</b>
+      看不出「最近还在不在动」，也回退不了改动。要留痕就 <span class="wb-mono">git init</span> 一下。</span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="wb-dgrid">
+  <div class="wb-stack">
+    <div class="wb-card" id="wb-shot" data-rel="{{ rel }}" data-has="{{ '1' if has_preview else '0' }}">
+      <div class="wb-ch">
+        <h2>{{ icon('static', 15) }}首页截图</h2>
+        <span class="hint">{% if has_preview %}{{ shot_name }} · 复制新图按 Ctrl+V 可替换{% else %}Ctrl+V 粘贴，或点右边选文件{% endif %}</span>
+        <button class="wb-btn sm ghost" data-shot-pick type="button">选择图片</button>
+      </div>
+      <div class="wb-cb-flush">
+        {% if has_preview %}
+          <div class="wb-shot has-shot">
+            <img src="{{ url_for('projects.preview', rel=rel) }}" alt="{{ p.name }} 截图">
+            <div class="wb-shot-bar">
+              <span class="wb-mono">{{ shot_name }}</span>
+              <span class="sp">
+                <button class="wb-btn sm" data-shot-pick type="button">更换</button>
+                <button class="wb-btn sm danger" data-shot-del type="button">删除</button>
+              </span>
+            </div>
+          </div>
+        {% else %}
+          <div class="wb-shot-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 3 3-3 4 4"/>
+            </svg>
+            <span><b>还没有截图</b> —— 把图复制到这个页面，按 <span class="wb-kbd-inline">Ctrl+V</span> 直接存。
+              <br><span class="wb-fs1 wb-mut2">支持 PNG / JPG / WebP，单张最大 8MB。</span></span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if readme_html %}
+    <div class="wb-card">
+      <div class="wb-ch">
+        <h2>{{ icon('book', 15) }}README</h2>
+        <span class="hint">美化阅读 · 已按白名单净化</span>
+      </div>
+      <div class="wb-cb"><div class="wb-md">{{ readme_html|safe }}</div></div>
+    </div>
+    {% else %}
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('book', 15) }}README</h2></div>
+      <div class="wb-cb">
+        <div class="wb-note">
+          {{ icon('alert', 14) }}
+          <span><b>这个项目没有 README。</b>别人（包括三个月后的你）打开只会看到一堆文件，
+          不知道它是干什么的、怎么跑起来。在根目录加一个 <span class="wb-mono">README.md</span>，
+          写清「这是什么 / 怎么装 / 怎么跑」就够。</span>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="wb-stack">
+    {# 体检放最上面：PM 打开一个项目，先要知道「要不要管、先管哪一件」，
+       而不是先看目录名和首次发现时间。每条都带一个能立刻做的动作。 #}
+    <div class="wb-card">
+      <div class="wb-ch">
+        <h2>{{ icon('shield', 15) }}项目体检</h2>
+        <span class="hint">{{ risks|length }} 条 · 从「会不会丢东西」开始看</span>
+      </div>
+      <div class="wb-cb wb-cb-tight">
+        {% for r in risks %}
+        <div class="wb-risk lv-{{ r.lv }}">
+          <span class="dot"></span>
+          <div class="bd">
+            <div class="t">{{ r.t }}</div>
+            <div class="d">{{ r.d }}</div>
+          </div>
+          {% if r.act %}<span class="act">{{ r.act }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# 工作节奏：全部从 git 历史算，没有推测。回答「还在推进吗、是按什么节奏推进的」。
+       原来这里是「待办债」（扫 TODO 注释），已砍 —— 字面匹配误报率太高，
+       24 条里 22 条是用法说明里的占位符，一个不准的面板会连累整页可信度。 #}
+    {% if work and not work.empty %}
+    <div class="wb-card">
+      <div class="wb-ch">
+        <h2>{{ icon('activity', 15) }}工作节奏</h2>
+        <span class="hint">近半年 git 历史 · 硬数据，不推测</span>
+      </div>
+      <div class="wb-cb wb-cb-tight">
+        <div class="wb-cadmode lv-{{ work.level }}">
+          <span class="dot"></span>
+          <div>
+            <div class="t">{{ work.mode }}</div>
+            <div class="d">{{ work.mode_hint }}</div>
+          </div>
+        </div>
+        <div class="wb-cadgrid">
+          <div><span>总提交</span><b>{{ work.total }}</b></div>
+          <div><span>跨度</span><b>{{ work.span_days }} 天</b></div>
+          <div><span>有动的天数</span><b>{{ work.active_days }} 天</b></div>
+          <div><span>中位间隔</span><b>{{ work.median_gap }} 天</b></div>
+        </div>
+        <div class="wb-cadbar" title="有提交的天数占跨度的比例">
+          <span>活跃密度</span>
+          <div class="bar"><i class="lv-{{ work.level }}" style="width:{{ work.density if work.density <= 100 else 100 }}%"></i></div>
+          <b>{{ work.density }}%</b>
+        </div>
+        <div class="wb-foot wb-mono">{{ work.first }} → {{ work.last }}</div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('list', 15) }}档案卡</h2></div>
+      <table class="wb-tbl wb-kv-table">
+        <tbody>
+          <tr>
+            <th>技术栈</th>
+            <td><span class="wb-kw"><span class="kw-{{ stack_key }}">{{ icon(stack_key, 11) }}{{ p.stack }}</span></span></td>
+          </tr>
+          <tr>
+            <th>状态</th>
+            <td>{{ badge(p.status, ACTIVE_KIND.get(p.status, 'mut')) }}
+              <span class="wb-fs1 wb-mut2">（{{ '手工设置' if p.status != p.active else '按活跃度自动' }}）</span></td>
+          </tr>
+          <tr>
+            <th>名称来源</th>
+            <td>
+              {% if p.name_overridden %}手工命名
+              {% else %}{{ SRC_LABEL.get(p.name_src, '目录名') }}
+                <span class="wb-fs1 wb-mut2">· 置信度 {{ '%.2f'|format(p.name_conf or 0) }}</span>
+              {% endif %}
+            </td>
+          </tr>
+          <tr><th>目录名</th><td class="wb-mono">{{ p.dirname }}</td></tr>
+          <tr><th>完整路径</th><td class="wb-mono wb-break wb-fs1">{{ p.path }}</td></tr>
+          <tr><th>首次发现</th><td class="wb-mono wb-fs1">{{ p.first_seen[:16] }}</td></tr>
+          <tr><th>最后扫描</th><td class="wb-mono wb-fs1">{{ p.last_seen[:16] }}</td></tr>
+          {% if p.note %}
+          <tr><th>备注</th><td><span class="kw-note">{{ p.note }}</span></td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if commits %}
+    <div class="wb-card">
+      <div class="wb-ch">
+        <h2>{{ icon('commit', 15) }}最近提交</h2>
+        <span class="hint">本地 git 直读 · {{ commits|length }} 条</span>
+      </div>
+      <div class="wb-cb">
+        {% for c in commits %}
+        <div class="wb-cmt">
+          <div class="h">
+            <span class="wb-cmt-kind" style="--kc:{{ c.color }}" title="{{ c.label }}">{{ icon(c.icon, 11) }}{{ c.label }}</span>
+            <span>{{ c.date }}</span>
+            <span class="wb-mut2">{{ c.hash }}</span>
+          </div>
+          <div class="s">{{ c.subject }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('branch', 15) }}同步状态</h2><span class="hint">本地 git</span></div>
+      <div class="wb-cb">
+        {% if p.is_git %}
+          <div class="wb-sync">
+            {% if p.dirty_n %}<span class="wb-minib m-dirty">{{ icon('alert', 11) }} {{ p.dirty_n }} 未提交</span>
+            {% else %}<span class="wb-minib m-sync">{{ icon('check', 11) }} 工作区干净</span>{% endif %}
+            {% if p.unpushed_n %}<span class="wb-minib m-push">{{ icon('arrow', 11) }} {{ p.unpushed_n }} 未推送</span>{% endif %}
+            {% if p.gh_url %}<a class="wb-minib m-gh" href="{{ p.gh_url }}" target="_blank" rel="noopener noreferrer">{{ icon('ext', 11) }} {{ p.gh_site or '仓库' }}</a>{% endif %}
+          </div>
+          {% if p.remote %}<div class="wb-foot wb-mono wb-break">{{ p.remote }}</div>{% endif %}
+        {% else %}
+          <div class="wb-note">
+            {{ icon('info', 14) }}
+            <span><b>不是 git 仓库。</b>没有版本记录，改坏了没法回退，也没法同步到别的机器。</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('info', 15) }}判定依据</h2><span class="hint">为什么它被当成项目</span></div>
+      <div class="wb-cb">
+        <details class="wb-fold">
+          <summary>展开看完整摘要与规则</summary>
+          <div class="wb-fb">
+            <div class="wb-fs1 wb-mut2" style="line-height:1.75">
+              {% if p.summary %}<p style="margin:0 0 6px">{{ p.summary }}</p>{% endif %}
+              名称来自 {{ SRC_LABEL.get(p.name_src, '目录名') }}（置信度 {{ '%.2f'|format(p.name_conf or 0) }}）。
+              低于 0.50 会标「待确认」，可以在列表里直接改名。
+              活跃度按最后提交时间推断：≤7 天活跃、8–30 放缓、31–90 停滞、&gt;90 可能废弃。
+            </div>
+          </div>
+        </details>
+        <div class="wb-row wb-mt3">
+          <a class="wb-btn sm ghost" href="{{ url_for('engine.index', stage=p.name_src) }}">{{ icon('search', 13) }} 看它命中哪条规则</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="wb-shot-file" accept="image/png,image/jpeg,image/webp" hidden>
+
+<div class="wb-mbx" id="mbx-edit" hidden>
+  <div class="wb-mbx-card" style="width:min(520px,94vw)">
+    <div class="wb-mbx-hd">
+      <h2>编辑项目</h2>
+      <button class="wb-iconbtn x" type="button" data-mbx-close aria-label="关闭">✕</button>
+    </div>
+    <div class="wb-mbx-bd">
+      <label class="wb-lab" for="ed-name">名称</label>
+      <input class="wb-f" id="ed-name" value="{{ p.name }}" maxlength="120">
+
+      <label class="wb-lab" for="ed-status">状态</label>
+      <select class="wb-f" id="ed-status">
+        <option value="">按活跃度自动（{{ p.active }}）</option>
+        {% for s in ['活跃', '进行中', '已完成', '归档', '忽略'] %}
+          <option value="{{ s }}" {{ 'selected' if p.status == s and p.status != p.active }}>{{ s }}</option>
+        {% endfor %}
+      </select>
+
+      <label class="wb-lab" for="ed-note">备注</label>
+      <textarea class="wb-f" id="ed-note" rows="3" maxlength="500" placeholder="比如：等接口权限 / 客户还没确认">{{ p.note }}</textarea>
+      <div class="wb-foot">名称改了之后，列表里的来源会标成「手工命名」。</div>
+    </div>
+    <div class="wb-mbx-ft">
+      <button class="wb-btn" type="button" data-mbx-close>取消</button>
+      <button class="wb-btn pri" id="ed-save" type="button" data-rel="{{ rel }}">保存</button>
+    </div>
+  </div>
+</div>
+
+{# ------------------------------------------------ 部署到哪台服务器（弹窗）
+   以前是贴在按钮底下的小浮层，看不见也点不着。改成通用弹窗后：
+   本机 + 全部服务器都列出来，已关联的整行浅底，可加可减，不用再去 chip 上找 ✕。 #}
+<div class="wb-mbx" id="mbx-deploy" hidden>
+  <div class="wb-mbx-card" style="width:min(560px,94vw)">
+    <div class="wb-mbx-hd">
+      <h2>部署到哪台服务器</h2>
+      <span class="wb-fs1 wb-mut2">点一下立即生效</span>
+      <button class="wb-iconbtn x" type="button" data-mbx-close aria-label="关闭">✕</button>
+    </div>
+    <div class="wb-mbx-bd">
+      <div class="wb-deploygrp">这台电脑</div>
+      <div class="wb-deployrow {{ 'on' if p.run_local }}">
+        <span class="wb-deployic">{{ icon('laptop', 15) }}</span>
+        <span class="wb-deploynm">本机 <span class="wb-fs1 wb-mut2">跑在这台电脑上</span></span>
+        {% if p.run_local %}
+        <button class="wb-btn ghost sm" type="button" data-local="0" data-rel="{{ rel }}">取消关联</button>
+        {% else %}
+        <button class="wb-btn pri sm" type="button" data-local="1" data-rel="{{ rel }}">关联</button>
+        {% endif %}
+      </div>
+
+      <div class="wb-deploygrp">服务器（{{ all_servers|length }}）</div>
+      {% if all_servers %}
+        {% for s in all_servers %}
+        <div class="wb-deployrow {{ 'on' if s.id in linked }}">
+          <span class="wb-deployic">{{ icon('server', 15) }}</span>
+          <span class="wb-deploynm">
+            {{ s.name }}
+            <span class="wb-fs1 wb-mut2 wb-mono">{{ s.host }}{% if s.port %}:{{ s.port }}{% endif %}</span>
+          </span>
+          {% if s.id in linked %}
+          <button class="wb-btn ghost sm" type="button" data-link-srv="{{ s.id }}"
+                  data-rel="{{ rel }}" data-on="0">取消关联</button>
+          {% else %}
+          <button class="wb-btn pri sm" type="button" data-link-srv="{{ s.id }}"
+                  data-rel="{{ rel }}" data-on="1">关联</button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="wb-deployempty">
+          还没有服务器 —— 去<a href="{{ url_for('servers.index') }}">服务器和云资源</a>加一台
+        </div>
+      {% endif %}
+    </div>
+    <div class="wb-mbx-ft">
+      <a class="wb-btn" href="{{ url_for('servers.index') }}">{{ icon('server', 13) }} 管理服务器</a>
+      <button class="wb-btn pri" type="button" data-mbx-close>完成</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

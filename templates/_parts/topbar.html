@@ -1,0 +1,21 @@
+<header class="wb-top">
+  <div class="wb-crumb"><b>{{ crumb|default('工作台') }}</b>{% if crumb_sub %} · {{ crumb_sub }}{% endif %}</div>
+
+  <div class="wb-searchbox">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>
+    </svg>
+    <input id="wb-q" type="search" placeholder="搜索项目 / 服务器…" aria-label="搜索"
+           {% if not search_enabled|default(false) %}readonly data-hint="搜索在「项目档案」页可用"{% endif %}>
+    <span class="wb-kbd">⌘K</span>
+  </div>
+
+  {# 之前这里是 disabled + 没有任何点击处理，是个摆设。
+     现在接通 /api/refresh-all：重扫所有根目录，并把结果 toast 出来。 #}
+  <button class="wb-btn pri" id="wb-refresh" type="button" title="重扫所有项目文件夹">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7"/>
+    </svg>
+    <span>刷新全部</span>
+  </button>
+</header>

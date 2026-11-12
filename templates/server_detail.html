@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+{% from '_parts/ui.html' import icon, tag, badge, empty, bar, ring %}
+
+{% block content %}
+<div class="wb-hero" data-srv='{{ {"id": sid, "name": s.name, "host": s.host, "port": s.port,
+                     "user": s.user, "auth": s.auth, "grp": s.grp, "note": s.note} | tojson }}'>
+  <a class="wb-back" href="{{ url_for('servers.index') }}" title="返回列表">←</a>
+  <div class="wb-hav" style="background:{{ '#2E7D32' if s.online else '#A32D2D' }}">{{ s.name[:1] }}</div>
+  <div class="wb-grow">
+    <h1>{{ s.name }}
+      <span class="wb-dot {{ 'on' if s.online else 'off' }}" style="vertical-align:middle"></span>
+      {{ badge('在线', 'ok') if s.online else badge('离线', 'err') }}
+      {% if s.grp %}{{ badge(s.grp, 'mut') }}{% endif %}
+    </h1>
+    <div class="wb-hero-meta">
+      <span class="wb-mono">{{ s.user }}@{{ s.host }}:{{ s.port }}</span>
+      {% if s.note %} · {{ s.note }}{% endif %}
+    </div>
+  </div>
+  <div class="wb-hero-acts">
+    <button class="wb-btn pri" type="button" data-reconnect="{{ sid }}">
+      {{ icon('refresh', 15) }} {{ '重新连接' if not s.online else '刷新数据' }}
+    </button>
+    {# 原来只有 data-srv-edit，全站没有任何 JS 绑它 —— 点了没反应，是个假按钮。
+       现在复用列表页的 mbx-server 编辑弹窗（app.js 按 closest('[data-srv]') 取数据）。 #}
+    <button class="wb-btn ghost" type="button" data-mbx-open="mbx-server" data-mode="edit">编辑</button>
+  </div>
+</div>
+
+<div id="rc-result" class="wb-rc" hidden></div>
+
+{% if s.online %}
+<div class="wb-srvfacts">
+  <div class="wb-fact wb-fact-ring">
+    <div class="fx"><div class="k">负载</div><div class="v" style="font-size:var(--fs-3)">{{ s.load1 if s.load1 is not none else '—' }}</div><div class="s">1 分钟</div></div>
+    {{ ring((s.load1 / 4 * 100) if s.load1 is not none else 0, '') }}
+  </div>
+  <div class="wb-fact wb-fact-ring">
+    <div class="fx"><div class="k">内存</div><div class="v" style="font-size:var(--fs-3)">{{ (s.mem_pct ~ '%') if s.mem_pct is not none else '—' }}</div><div class="s">{{ s.mem_used or '—' }} / {{ s.mem_total or '—' }} MB</div></div>
+    {{ ring(s.mem_pct or 0, '') }}
+  </div>
+  <div class="wb-fact wb-fact-ring">
+    <div class="fx"><div class="k">磁盘 /</div><div class="v" style="font-size:var(--fs-3)">{{ (s.disk_pct ~ '%') if s.disk_pct is not none else '—' }}</div><div class="s">{{ s.disk_used or '—' }} / {{ s.disk_total or '—' }}</div></div>
+    {{ ring(s.disk_pct or 0, '') }}
+  </div>
+  <div class="wb-fact">
+    <div class="k">运行时长</div>
+    <div class="v" style="font-size:var(--fs-3)">{{ s.uptime or '—' }}</div>
+    <div class="s">{{ s.os_name or '系统未知' }}</div>
+  </div>
+  <div class="wb-fact">
+    <div class="k">容器</div>
+    <div class="v" style="font-size:var(--fs-3)">{{ s.containers|length }}</div>
+    <div class="s">运行中</div>
+  </div>
+  <div class="wb-fact">
+    <div class="k">监听端口</div>
+    <div class="v" style="font-size:var(--fs-3)">{{ s.ports|length }}</div>
+    <div class="s">对外开放</div>
+  </div>
+</div>
+{% else %}
+<div class="wb-card" id="off-block">
+  <div class="wb-cb">
+    <div class="wb-srv-state">
+      {{ tag('采集失败', 'err', 'alert') if s.ts else tag('未采集', 'mut', 'info') }}
+      <span class="wb-fs1 wb-mut2">{{ ('上次尝试 ' ~ s.ts) if s.ts else '从没连过' }}</span>
+    </div>
+    <div class="wb-srv-err">{{ s.error or '还没采集过' }}</div>
+    <div class="wb-foot">
+      按顺序查：机器有没有开机 → IP 有没有变 → 防火墙放没放 22 端口 → 密码/私钥是不是换了。<br>
+      改完点右上角<b>「重新连接」</b>，只重连这一台，几秒钟出结果。
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="wb-dgrid">
+  <div class="wb-stack">
+    <div class="wb-card">
+      <div class="wb-ch">
+        <h2>{{ icon('plug', 15) }}这台机器上跑着什么</h2>
+        <span class="hint">{{ s.containers|length }} 个容器 · {{ projects|length }} 个关联项目</span>
+      </div>
+      <div class="wb-cb">
+        {# all_projects 也算：一台刚导入、还没挂任何项目的机器，正是最需要勾选的时候 #}
+        {% if s.containers or projects or all_projects %}
+        <div class="wb-twogrid">
+          <div>
+            <div class="wb-sub-h">{{ icon('server', 13) }}容器</div>
+            {% if s.containers %}
+              {% for c in s.containers %}
+              <div class="wb-line"><span class="wb-mono">{{ c }}</span>{{ tag('运行中', 'ok') }}</div>
+              {% endfor %}
+            {% else %}
+              <div class="wb-fs1 wb-mut2">没有 docker 容器</div>
+            {% endif %}
+          </div>
+          <div>
+            <div class="wb-sub-h">{{ icon('folder', 13) }}跑在这台机器上的项目</div>
+            {% if projects %}
+              <div class="wb-srvchips">
+                {% for p in projects %}
+                <a class="wb-srvchip go" href="{{ url_for('projects.detail', rel=p.rel) }}"
+                   title="去项目详情">{{ p.user_name or p.name_auto or p.dirname }}</a>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="wb-fs1 wb-mut2">还没关联项目 —— 点下面的「关联项目」勾一台</div>
+            {% endif %}
+
+            <button class="wb-btn sm ghost wb-proj-toggle" type="button" data-toggle-projs>
+              {{ icon('plus', 13) }} 关联项目
+            </button>
+            {# 默认收起：项目可能有二十几个，一上来全铺开就把这页撑成清单了 #}
+            <div class="wb-projpicker" hidden>
+              {% for p in all_projects %}
+              <label class="wb-pickrow">
+                <input type="checkbox" data-link-proj="{{ p.path }}" data-sid="{{ sid }}"
+                       {{ 'checked' if p.path in linked_paths }}>
+                <span class="wb-pickname">{{ p.label }}</span>
+              </label>
+              {% else %}
+              <div class="wb-fs1 wb-mut2">库里还没有项目，先去「项目档案」扫一遍</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+        {% else %}
+          <div class="wb-note">
+            {{ icon('info', 14) }}
+            <span><b>这台机器上没读到容器，也没关联项目。</b>
+            如果它确实在跑东西，可能是 docker 没装、或者当前用户没权限看。
+            在项目详情里点「部署到哪台」，项目就会出现在这里。</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="wb-card">
+      <div class="wb-ch">
+        <h2>{{ icon('scan', 15) }}监听端口</h2>
+        <span class="hint">
+          {%- if ports.has_detail %}{{ ports.total }} 个在听 · 每个都标了「谁在听、对外还是只对本机」
+          {%- else %}{{ ports.total }} 个 · 没读到进程名（多半不是 root，取不到 ss -p）{% endif -%}
+        </span>
+      </div>
+      <div class="wb-cb">
+        {% if ports.total %}
+          {# 只给端口号等于没说 —— 用户看到 :22 会问"我明明没开 22"。
+             这里把 sshd / nginx 这些进程名直接摆出来，疑问当场消掉。 #}
+          <table class="wb-tbl wb-porttbl">
+            <thead>
+              <tr><th style="width:88px">端口</th><th>谁在听</th><th style="width:110px">可达范围</th></tr>
+            </thead>
+            <tbody>
+              {% for p in ports.common %}
+              <tr>
+                <td><span class="wb-port is-common">{{ ports.labels[p.port|string] }}<b>:{{ p.port }}</b></span></td>
+                <td class="wb-mono">{{ p.proc|join(' / ') if p.proc else '—' }}</td>
+                <td>{% if p.scope == 'all' %}{{ tag('对外可达', 'warn') }}{% elif p.scope == 'local' %}{{ tag('仅本机', 'mut') }}{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+
+          {% for g in ports.groups %}
+          <details class="wb-fold">
+            <summary>{{ g.label }} <span class="wb-bdg b-mut">{{ g.ports|length }}</span></summary>
+            <div class="wb-ports">
+              {% for p in g.ports %}
+                {% set d = ports.detail.get(p) %}
+                <span class="wb-port" title="{{ (d.proc|join(' / ')) if d and d.proc else '未知进程' }}">{{ p }}{% if d and d.proc %}<i>{{ d.proc[0] }}</i>{% endif %}</span>
+              {% endfor %}
+            </div>
+          </details>
+          {% endfor %}
+        {% else %}
+          <div class="wb-fs1 wb-mut2">没读到监听端口（可能没权限，或系统没有 ss / netstat）。</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="wb-stack">
+    <div class="wb-card">
+      <div class="wb-ch"><h2>{{ icon('info', 15) }}基本信息</h2><span class="hint">最近一次采集</span></div>
+      <table class="wb-tbl wb-kv-table">
+        <tbody>
+          <tr><th>主机名</th><td class="wb-mono">{{ s.hostname or '—' }}</td></tr>
+          <tr><th>地址</th><td class="wb-mono">{{ s.host }}:{{ s.port }}</td></tr>
+          <tr><th>登录用户</th><td class="wb-mono">{{ s.user }}</td></tr>
+          <tr><th>认证方式</th><td>{{ s.auth_label }}</td></tr>
+          <tr><th>系统</th><td>{{ s.os_name or '—' }}</td></tr>
+          <tr><th>内核</th><td class="wb-mono wb-break">{{ s.kernel or '—' }}</td></tr>
+          <tr><th>运行时长</th><td>{{ s.uptime or '—' }}</td></tr>
+          <tr><th>采集时间</th><td class="wb-mono">{{ s.ts or '—' }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{# 编辑弹窗：与服务器列表页同一份模板，行为完全一致 #}
+{% include '_parts/modal_server.html' %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='server_detail.js') }}"></script>
+{% endblock %}

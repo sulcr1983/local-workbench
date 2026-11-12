@@ -1,0 +1,17 @@
+* text=auto eol=lf
+
+# Git hook 必须是 LF：CRLF 会让 shebang 变成 "#!/bin/sh\r"，
+# 结果是 hook 静默失效——门禁形同虚设。这一条不能删。
+.githooks/* text eol=lf
+*.sh       text eol=lf
+
+# Windows 批处理反过来必须是 CRLF，否则 cmd 解析异常
+*.bat      text eol=crlf
+*.cmd      text eol=crlf
+
+*.png      binary
+*.jpg      binary
+*.jpeg     binary
+*.webp     binary
+*.gif      binary
+*.zip      binary
